@@ -1,35 +1,35 @@
 item {
-    name: "1-dolar - v1 2024-10-13 8-11am",
+    name: "1_dollar",
     id: 1,
-    display_name: "1-dolar - v1 2024-10-13 8-11am"
+    display_name: "1-dollar"
 }
 item {
-    name: "50Dollar - v1 2024-10-20 10-48am",
+    name: "50_dollar",
     id: 2,
-    display_name: "50Dollar - v1 2024-10-20 10-48am"
+    display_name: "50_dollar"
 }
 item {
-    name: "USA 10 -Reviewed - v1 2024-10-13 8-20am",
+    name: "10_dollar",
     id: 3,
-    display_name: "USA 10 -Reviewed - v1 2024-10-13 8-20am"
+    display_name: "10_dollar"
 }
 item {
-    name: "USA 2 - Reviewed - v1 2024-10-20 10-26am",
+    name: "2_dollar",
     id: 4,
-    display_name: "USA 2 - Reviewed - v1 2024-10-20 10-26am"
+    display_name: "2_dollar"
 }
 item {
-    name: "USA 20 - Reviewed - v1 2024-10-20 10-41am",
+    name: "20_dollar",
     id: 5,
-    display_name: "USA 20 - Reviewed - v1 2024-10-20 10-41am"
+    display_name: "20_dollar"
 }
 item {
-    name: "USA 5 - v1 2024-10-20 10-30am",
+    name: "5_dollar",
     id: 6,
-    display_name: "USA 5 - v1 2024-10-20 10-30am"
+    display_name: "5_dollar"
 }
 item {
-    name: "Wilter- US dollar 100 - v1 2024-10-20 11-02am",
+    name: "100_dollar",
     id: 7,
-    display_name: "Wilter- US dollar 100 - v1 2024-10-20 11-02am"
+    display_name: "100_dollar"
 }
