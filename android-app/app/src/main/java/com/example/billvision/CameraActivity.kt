@@ -11,10 +11,12 @@ import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
@@ -98,12 +100,25 @@ fun CameraPreviewContent(
         viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
     }
 
-    surfaceRequest?.let { request ->
-        CameraXViewfinder(
-            surfaceRequest = request,
-            modifier = modifier
-        )
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        surfaceRequest?.let { request ->
+            CameraXViewfinder(
+                surfaceRequest = request,
+                modifier = modifier
+            )
+        }
+
+        Button(
+            onClick = {},
+            modifier = Modifier.padding(64.dp)
+        ) {
+            Text("Take Photo")
+        }
     }
+
 }
 
 class CameraPreviewViewModel : ViewModel() {
