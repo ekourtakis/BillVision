@@ -7,10 +7,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
+import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
+import androidx.camera.core.ImageCaptureException
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -38,12 +40,16 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
+import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import java.io.File
 
 class CameraActivity : ComponentActivity() {
+    private lateinit var cameraProviderFuture : ListenableFuture<ProcessCameraProvider>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -112,7 +118,11 @@ fun CameraPreviewContent(
         }
 
         Button(
-            onClick = {},
+            onClick = {
+                viewModel.takePhoto(context) { photoFile ->
+                    // handle this later
+                }
+            },
             modifier = Modifier.padding(64.dp)
         ) {
             Text("Take Photo")
@@ -126,6 +136,8 @@ class CameraPreviewViewModel : ViewModel() {
     private val _surfaceRequest = MutableStateFlow<SurfaceRequest?>(null)
     val surfaceRequest: StateFlow<SurfaceRequest?> = _surfaceRequest
 
+    private val imageCapture = ImageCapture.Builder().build()
+
     private val cameraPreviewUseCase = Preview.Builder().build().apply {
         setSurfaceProvider { newSurfaceRequest ->
             _surfaceRequest.update { newSurfaceRequest }
@@ -135,10 +147,33 @@ class CameraPreviewViewModel : ViewModel() {
     suspend fun bindToCamera(appContext: Context, lifecycleOwner: LifecycleOwner) {
         val processCameraProvider = ProcessCameraProvider.awaitInstance(appContext)
         processCameraProvider.bindToLifecycle(
-            lifecycleOwner, DEFAULT_BACK_CAMERA, cameraPreviewUseCase
+            lifecycleOwner, DEFAULT_BACK_CAMERA, cameraPreviewUseCase, imageCapture
         )
 
         // Cancellation signals we're done with the camera
         try { awaitCancellation() } finally { processCameraProvider.unbindAll() }
+    }
+
+    fun takePhoto(context: Context, onPhotoTaken: (File) -> Unit) {
+        val photoFile = File(
+            context.getExternalFilesDir(null),
+            "BillVision_${System.currentTimeMillis()}.jpg"
+        )
+
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            context.mainExecutor,
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    onPhotoTaken(photoFile)
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    // Handle error here
+                }
+            }
+        )
     }
 }
