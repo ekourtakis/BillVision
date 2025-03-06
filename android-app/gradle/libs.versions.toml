@@ -10,6 +10,7 @@ activityCompose = "1.9.3"
 composeBom = "2024.04.01"
 camerax = "1.5.0-alpha03"
 accompanist = "0.36.0"
+volley = "1.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +38,7 @@ androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycl
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
 # The helper library to grant the camera permission
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanist" }
+volley = { group = "com.android.volley", name = "volley", version.ref = "volley" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -62,4 +62,6 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.accompanist.permissions)
+
+    implementation("io.coil-kt:coil-compose:2.5.0")
 }

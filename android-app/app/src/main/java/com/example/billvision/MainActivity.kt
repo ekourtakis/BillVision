@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,15 +25,32 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 
 class MainActivity : ComponentActivity() {
+    private val cameraLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val photoPath = result.data?.getStringExtra("photo_path")
+            if (photoPath != null) {
+                val intent = Intent(this, PhotoDisplayActivity::class.java).apply {
+                    putExtra(PhotoDisplayActivity.EXTRA_PHOTO_PATH, photoPath)
+                }
+                startActivity(intent)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             PermissionScreen() {
-                startActivity(Intent(this, CameraActivity::class.java))
+                launchCamera()
             }
         }
-        startActivity(Intent(this, CameraActivity::class.java))
+    }
+
+    private fun launchCamera() {
+        cameraLauncher.launch(Intent(this, CameraActivity::class.java))
     }
 
     @OptIn(ExperimentalPermissionsApi::class)

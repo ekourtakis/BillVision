@@ -1,6 +1,7 @@
 package com.example.billvision
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,7 +31,6 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,7 +43,13 @@ class CameraActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val viewModel = remember { CameraPreviewViewModel() }
-            CameraPreview(viewModel)
+            CameraPreview(viewModel) { photoPath ->
+                val intent = Intent().apply {
+                    putExtra("photo_path", photoPath)
+                }
+                setResult(RESULT_OK, intent)
+                finish()
+            }
         }
     }
 }
@@ -52,7 +58,8 @@ class CameraActivity : ComponentActivity() {
 fun CameraPreview(
     viewModel: CameraPreviewViewModel,
     modifier: Modifier = Modifier,
-    lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
+    lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
+    onPhotoTaken: (String) -> Unit
 ) {
     val surfaceRequest by viewModel.surfaceRequest.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -74,7 +81,7 @@ fun CameraPreview(
         Button(
             onClick = {
                 viewModel.takePhoto(context) { photoFile ->
-                    // handle this later
+                    onPhotoTaken(photoFile.absolutePath)
                 }
             },
             modifier = Modifier.padding(64.dp)
@@ -82,7 +89,6 @@ fun CameraPreview(
             Text("Take Photo")
         }
     }
-
 }
 
 class CameraPreviewViewModel : ViewModel() {
