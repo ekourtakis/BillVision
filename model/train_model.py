@@ -43,12 +43,12 @@ def train_model():
         return image, label
 
     # Load training dataset
-    train_dataset = tf.data.TFRecordDataset('/Users/manny/Documents/School/cis4515/BillVision/model/USD_Total-1/train/money.tfrecord')
+    train_dataset = tf.data.TFRecordDataset('USD_Total-1/train/money.tfrecord')
     train_dataset = train_dataset.map(parse_tfrecord)
     train_dataset = train_dataset.shuffle(1000).batch(32).repeat()  # Add .repeat()
 
     # Load validation dataset
-    val_dataset = tf.data.TFRecordDataset('/Users/manny/Documents/School/cis4515/BillVision/model/USD_Total-1/valid/money.tfrecord')
+    val_dataset = tf.data.TFRecordDataset('USD_Total-1/valid/money.tfrecord')
     val_dataset = val_dataset.map(parse_tfrecord)
     val_dataset = val_dataset.batch(32)
 
