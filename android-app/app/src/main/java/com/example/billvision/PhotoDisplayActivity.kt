@@ -15,15 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 
 class PhotoDisplayActivity : ComponentActivity() {
-    companion object {
-        const val EXTRA_PHOTO_PATH = "photo_path"
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val photoPath = intent.getStringExtra(EXTRA_PHOTO_PATH)
+        val photoPath = intent.getStringExtra(MainActivity.EXTRA_PHOTO_PATH)
         if (photoPath == null) {
             finish()
             return
