@@ -13,9 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.Painter
-import coil.compose.rememberAsyncImagePainter
-import java.io.File
 
 class PhotoDisplayActivity : ComponentActivity() {
     companion object {
