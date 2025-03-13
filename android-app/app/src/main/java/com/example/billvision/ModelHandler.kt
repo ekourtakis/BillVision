@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.ThumbnailUtils
-import android.util.Log
 import com.example.billvision.ml.UsdDetector
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.common.ops.NormalizeOp
@@ -17,14 +16,9 @@ class ModelHandler(private val context: Context) {
 
     private lateinit var model: UsdDetector
 
-    fun classifyImage(photoPath: String) {
-        val bitmap = loadAndPreprocessBitmap(photoPath)
+    fun classifyImage(photoPath: String): BillInference {
+        val bitmap = BitmapFactory.decodeFile(photoPath)
 
-        runInference(bitmap)
-    }
-
-    private fun runInference(bitmap: Bitmap) {
-        Log.d("ModelHandler", "in runinference")
         try {
             model = UsdDetector.newInstance(context)
 
@@ -41,31 +35,21 @@ class ModelHandler(private val context: Context) {
 
             val outputFeature0 = model.process(processedImage.tensorBuffer)
 
+            // Get output values
+            val outputArray = outputFeature0.outputFeature0AsTensorBuffer.floatArray
 
-            val outputArray = outputFeature0.outputFeature0AsTensorBuffer.floatArray  // If your model output is float32
-            Log.d("ModelHandler", "Inference result values: ${outputArray.joinToString(", ")}")
+            // Find the highest confidence prediction
+            val maxIndex = outputArray.indices.maxByOrNull { outputArray[it] } ?: -1
+            val confidence = if (maxIndex != -1) outputArray[maxIndex] / 255f else 0f
 
+            return BillInference(
+                billLabelIndex = maxIndex, confidence = confidence, photoPath = photoPath
+            )
         } catch (e: Exception) {
-            Log.d("ModelHandler", "in the catch")
             e.printStackTrace()
+            return BillInference(billLabelIndex = -1, confidence = 0f, photoPath=photoPath)
         } finally {
             model.close()
         }
-        Log.d("ModelHandler", "out of runinference")
-    }
-
-
-    private fun loadAndPreprocessBitmap(filePath: String) : Bitmap {
-        // load bitmap
-        var bitmap = BitmapFactory.decodeFile(filePath)
-
-        // make bitmap square
-        val dimension = bitmap.height.coerceAtMost(bitmap.width)
-        bitmap = ThumbnailUtils.extractThumbnail(bitmap, dimension, dimension)
-
-        // make bitmap proper resolution
-        bitmap = Bitmap.createScaledBitmap(bitmap, IMAGE_SIZE, IMAGE_SIZE, false)
-
-        return bitmap
     }
 }

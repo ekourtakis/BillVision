@@ -1,8 +1,6 @@
 package com.example.billvision
 
 import android.content.Intent
-import android.graphics.BitmapFactory
-import android.media.ThumbnailUtils
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -30,6 +28,7 @@ import com.google.accompanist.permissions.shouldShowRationale
 class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_PHOTO_PATH = "photo_path"
+        const val EXTRA_INFERENCE = "bill_inference"
     }
 
     private val modelHandler = ModelHandler(this)
@@ -40,10 +39,10 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == RESULT_OK) {
             val photoPath = result.data?.getStringExtra(EXTRA_PHOTO_PATH)
             if (photoPath != null) {
-                modelHandler.classifyImage(photoPath)
+                val inference = modelHandler.classifyImage(photoPath)
 
-                val intent = Intent(this, PhotoDisplayActivity::class.java).apply {
-                    putExtra(EXTRA_PHOTO_PATH, photoPath)
+                val intent = Intent(this, ResultActivity::class.java).apply {
+                    putExtra(EXTRA_INFERENCE, inference)
                 }
 
                 startActivity(intent)
