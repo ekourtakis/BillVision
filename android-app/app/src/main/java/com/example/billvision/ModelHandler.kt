@@ -1,9 +1,7 @@
 package com.example.billvision
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.media.ThumbnailUtils
 import com.example.billvision.ml.UsdDetector
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.common.ops.NormalizeOp
@@ -12,7 +10,7 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 
 class ModelHandler(private val context: Context) {
-    val IMAGE_SIZE = 224
+    private val IMAGE_SIZE = 224
 
     private lateinit var model: UsdDetector
 
