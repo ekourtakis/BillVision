@@ -9,6 +9,7 @@ cycler==0.12.1
 dm-tree==0.1.9
 docstring_parser==0.16
 etils==1.12.0
+filetype==1.2.0
 flatbuffers==25.1.24
 fonttools==4.56.0
 fsspec==2025.2.0
@@ -17,7 +18,7 @@ google-pasta==0.2.0
 googleapis-common-protos==1.66.0
 grpcio==1.70.0
 h5py==3.12.1
-idna==3.10
+idna==3.7
 immutabledict==4.2.1
 importlib_resources==6.5.2
 joblib==1.4.2
@@ -32,6 +33,7 @@ mdurl==0.1.2
 ml-dtypes==0.3.2
 namex==0.0.8
 numpy==1.26.4
+opencv-python-headless==4.10.0.84
 opt_einsum==3.4.0
 optree==0.14.0
 packaging==24.2
@@ -43,8 +45,12 @@ pyarrow==19.0.0
 Pygments==2.19.1
 pyparsing==3.2.1
 python-dateutil==2.9.0.post0
+python-dotenv==1.0.1
+PyYAML==6.0.2
 requests==2.32.3
+requests-toolbelt==1.0.0
 rich==13.9.4
+roboflow==1.1.54
 scikit-learn==1.6.1
 scipy==1.15.1
 simple-parsing==0.1.7

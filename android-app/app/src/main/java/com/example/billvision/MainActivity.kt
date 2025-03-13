@@ -2,6 +2,7 @@ package com.example.billvision
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,19 +26,32 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_PHOTO_PATH = "photo_path"
+        const val EXTRA_INFERENCE = "bill_inference"
+    }
+
+    private val modelHandler = ModelHandler(this)
+
     private val cameraLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
-            val photoPath = result.data?.getStringExtra("photo_path")
+            val photoPath = result.data?.getStringExtra(EXTRA_PHOTO_PATH)
             if (photoPath != null) {
-                val intent = Intent(this, PhotoDisplayActivity::class.java).apply {
-                    putExtra(PhotoDisplayActivity.EXTRA_PHOTO_PATH, photoPath)
+                val inference = modelHandler.classifyImage(photoPath)
+
+                val intent = Intent(this, ResultActivity::class.java).apply {
+                    putExtra(EXTRA_INFERENCE, inference)
                 }
+
                 startActivity(intent)
+            } else {
+                Log.e("BillVision", "photoPath null")
             }
         }
     }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

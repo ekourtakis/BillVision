@@ -45,7 +45,7 @@ class CameraActivity : ComponentActivity() {
             val viewModel = remember { CameraPreviewViewModel() }
             CameraPreview(viewModel) { photoPath ->
                 val intent = Intent().apply {
-                    putExtra("photo_path", photoPath)
+                    putExtra(MainActivity.EXTRA_PHOTO_PATH, photoPath)
                 }
                 setResult(RESULT_OK, intent)
                 finish()
