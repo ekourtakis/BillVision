@@ -45,11 +45,17 @@ class MainActivity : ComponentActivity() {
                     putExtra(EXTRA_INFERENCE, inference)
                 }
 
-                startActivity(intent)
+                resultLauncher.launch(intent)
             } else {
                 Log.e("BillVision", "photoPath null")
             }
         }
+    }
+
+    private val resultLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        launchCamera()
     }
 
 
