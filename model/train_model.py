@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow import keras
-import numpy as np
+from tensorflow.keras.callbacks import EarlyStopping
 import matplotlib.pyplot as plt
 from roboflow import Roboflow
 from dotenv import load_dotenv
@@ -31,6 +31,17 @@ def train_model():
         image_size=(224, 224),     # Resize images to 224x224
         batch_size=32               # Set batch size
     )
+
+    train_dataset = train_dataset.map(lambda x, y: (x / 255.0, y))
+    val_dataset = val_dataset.map(lambda x, y: (x / 255.0, y))
+
+    # train_dataset = train_dataset.shuffle(buffer_size=1000)
+    # val_dataset = val_dataset.shuffle(buffer_size=1000)
+
+    # AUTOTUNE = tf.data.AUTOTUNE
+    # train_dataset = train_dataset.prefetch(buffer_size=AUTOTUNE)
+    # val_dataset = val_dataset.prefetch(buffer_size=AUTOTUNE)
+
 
     train_dataset = train_dataset.repeat()
     val_dataset = val_dataset.repeat()
@@ -71,19 +82,26 @@ def train_model():
     )
 
     # Calculate steps_per_epoch and validation_steps
-    num_train_samples = 11253  # Number of training images
-    num_val_samples = 1072     # Number of validation images
+    num_train_samples = 17040  # Number of training images
+    num_val_samples = 534     # Number of validation images
     batch_size = 16
     steps_per_epoch = num_train_samples // batch_size
     validation_steps = num_val_samples // batch_size
 
-    # Train the model for 10 epochs (for testing)
+    # Early stopping to prevent overfitting
+    early_stopping = EarlyStopping(
+        monitor='val_loss',      # Monitor validation loss
+        patience=3,              # Stop after 3 epochs of no improvement
+        restore_best_weights=True # Restore the best weights at the end
+    )
+
     history = model.fit(
         train_dataset,
         validation_data=val_dataset,
-        epochs=10,  # Train for more epochs
+        epochs=25,  # Train for more epochs
         steps_per_epoch=steps_per_epoch,
-        validation_steps=validation_steps
+        validation_steps=validation_steps,
+        callbacks=[early_stopping] 
     )
 
     # Save the trained model
