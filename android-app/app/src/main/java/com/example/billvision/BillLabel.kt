@@ -1,13 +1,13 @@
 package com.example.billvision
 
 enum class BillLabel(val label: String) {
-    ONE_DOLLAR("One Dollar"),
-    FIFTY_DOLLAR("Fifty Dollar"),
-    TEN_DOLLAR("Ten Dollar"),
-    TWO_DOLLAR("Two Dollar"),
-    TWENTY_DOLLAR("Twenty Dollar"),
-    FIVE_DOLLAR("Five Dollar"),
     HUNDRED_DOLLAR("Hundred Dollar"),
+    TEN_DOLLAR("Ten Dollar"),
+    ONE_DOLLAR("One Dollar"),
+    TWENTY_DOLLAR("Twenty Dollar"),
+    TWO_DOLLAR("Two Dollar"),
+    FIFTY_DOLLAR("Fifty Dollar"),
+    FIVE_DOLLAR("Five Dollar"),
     UNKNOWN("Unknown");
 
     companion object {

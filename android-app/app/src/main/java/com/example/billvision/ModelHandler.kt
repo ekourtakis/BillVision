@@ -2,6 +2,7 @@ package com.example.billvision
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.util.Log
 import com.example.billvision.ml.UsdDetector
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.support.common.ops.NormalizeOp
@@ -21,7 +22,7 @@ class ModelHandler(private val context: Context) {
             model = UsdDetector.newInstance(context)
 
             // create a TensorImage from the bitmap
-            val tensorImage = TensorImage(DataType.UINT8)
+            val tensorImage = TensorImage(DataType.FLOAT32)
             tensorImage.load(bitmap)
 
             // Preprocess image (resize, normalize, etc.)
@@ -38,7 +39,9 @@ class ModelHandler(private val context: Context) {
 
             // Find the highest confidence prediction
             val maxIndex = outputArray.indices.maxByOrNull { outputArray[it] } ?: -1
-            val confidence = if (maxIndex != -1) outputArray[maxIndex] / 255f else 0f
+            val confidence = if (maxIndex != -1) outputArray[maxIndex] else 0f
+
+            Log.d("ModelHandler", "Inference: $maxIndex, $confidence")
 
             return BillInference(
                 billLabelIndex = maxIndex, confidence = confidence, photoPath = photoPath

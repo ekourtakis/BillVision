@@ -1,9 +1,8 @@
 import tensorflow as tf
 from tensorflow import keras
-import numpy as np
+from tensorflow.keras.callbacks import EarlyStopping
 import matplotlib.pyplot as plt
 from roboflow import Roboflow
-
 from dotenv import load_dotenv
 import os
 
@@ -15,42 +14,40 @@ def train_model():
 
     # Download dataset from Roboflow
     rf = Roboflow(api_key=roboflow_api_key)
-    project = rf.workspace("jm-cbkgb").project("usd_total")
+    project = rf.workspace("matias-406ns").project("usd_detection")
     version = project.version(1)
-    dataset = version.download("tfrecord")  # Changed to tfrecord format
-    
-    # Function to parse TFRecord
-    def parse_tfrecord(example_proto):
-        feature_description = {
-            'image/encoded': tf.io.FixedLenFeature([], tf.string),
-            'image/object/class/label': tf.io.VarLenFeature(tf.int64),
-            'image/object/bbox/xmin': tf.io.VarLenFeature(tf.float32),
-            'image/object/bbox/ymin': tf.io.VarLenFeature(tf.float32),
-            'image/object/bbox/xmax': tf.io.VarLenFeature(tf.float32),
-            'image/object/bbox/ymax': tf.io.VarLenFeature(tf.float32),
-        }
-        
-        example = tf.io.parse_single_example(example_proto, feature_description)
-        
-        # Decode the image
-        image = tf.io.decode_jpeg(example['image/encoded'], channels=3)  # Decode JPEG image
-        image = tf.image.resize(image, [224, 224])  # Resize to 224x224
-        image = tf.cast(image, tf.float32) / 255.0  # Normalize to [0, 1]
-        
-        # Get the first label and subtract 1 to normalize to [0, num_classes - 1]
-        label = tf.sparse.to_dense(example['image/object/class/label'])[0] - 1
-        
-        return image, label
+    dataset = version.download("folder")
 
     # Load training dataset
-    train_dataset = tf.data.TFRecordDataset('USD_Total-1/train/money.tfrecord')
-    train_dataset = train_dataset.map(parse_tfrecord)
-    train_dataset = train_dataset.shuffle(1000).batch(32).repeat()  # Add .repeat()
+    train_dataset = tf.keras.preprocessing.image_dataset_from_directory(
+        'usd_detection-1/train',  # Updated path to load images directly
+        image_size=(224, 224),    # Resize images to 224x224 (MobileNetV2 input size)
+        batch_size=32              # Set batch size
+    )
 
     # Load validation dataset
-    val_dataset = tf.data.TFRecordDataset('USD_Total-1/valid/money.tfrecord')
-    val_dataset = val_dataset.map(parse_tfrecord)
-    val_dataset = val_dataset.batch(32)
+    val_dataset = tf.keras.preprocessing.image_dataset_from_directory(
+        'usd_detection-1/valid',  # Updated path to load images directly
+        image_size=(224, 224),     # Resize images to 224x224
+        batch_size=32               # Set batch size
+    )
+
+    class_names = train_dataset.class_names
+    print(class_names)
+
+    train_dataset = train_dataset.map(lambda x, y: (x / 255.0, y))
+    val_dataset = val_dataset.map(lambda x, y: (x / 255.0, y))
+
+    # train_dataset = train_dataset.shuffle(buffer_size=1000)
+    # val_dataset = val_dataset.shuffle(buffer_size=1000)
+
+    # AUTOTUNE = tf.data.AUTOTUNE
+    # train_dataset = train_dataset.prefetch(buffer_size=AUTOTUNE)
+    # val_dataset = val_dataset.prefetch(buffer_size=AUTOTUNE)
+
+
+    train_dataset = train_dataset.repeat()
+    val_dataset = val_dataset.repeat()
 
     # Data augmentation (used only during training)
     data_augmentation = keras.Sequential([
@@ -59,90 +56,80 @@ def train_model():
         keras.layers.RandomZoom(0.1),
     ])
 
-    # Build the model
+    # Load MobileNetV2 as the base model
+    base_model = tf.keras.applications.MobileNetV2(
+        input_shape=(224, 224, 3),  # Input shape for MobileNetV2
+        include_top=False,          # Exclude the top classification layer
+        weights='imagenet'          # Use pre-trained weights from ImageNet
+    )
+
+    # Freeze the base model (so its weights are not updated during training)
+    base_model.trainable = False
+
+    # Build the model using MobileNetV2 as the base
     model = keras.Sequential([
-        keras.layers.InputLayer(shape=(224, 224, 3)),
-        data_augmentation,  # Data augmentation is part of the model during training
-        keras.layers.Conv2D(32, 3, activation='relu'),
-        keras.layers.MaxPooling2D(),
-        keras.layers.Conv2D(64, 3, activation='relu'),
-        keras.layers.MaxPooling2D(),
-        keras.layers.Conv2D(64, 3, activation='relu'),
-        keras.layers.MaxPooling2D(),
-        keras.layers.Dropout(0.2),
-        keras.layers.Flatten(),
-        keras.layers.Dense(128, activation='relu'),
-        keras.layers.Dense(7, activation='softmax')  # 7 classes for different denominations
+        keras.layers.Input(shape=(224, 224, 3)),
+        data_augmentation,  # Apply data augmentation
+        base_model,         # Add MobileNetV2 as the base
+        keras.layers.GlobalAveragePooling2D(),  # Add a global average pooling layer
+        keras.layers.Dense(128, activation='relu'),  # Add a dense layer
+        keras.layers.Dropout(0.2),  # Add dropout for regularization
+        keras.layers.Dense(7, activation='softmax')  # Output layer for 7 classes
     ])
 
+    # Compile the model
     model.compile(
         optimizer='adam',
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
         metrics=['accuracy']
     )
-    
+
     # Calculate steps_per_epoch and validation_steps
-    num_train_samples = 2106  # Number of training images
-    num_val_samples = 593     # Number of validation images
-    batch_size = 32
+    num_train_samples = 17040  # Number of training images
+    num_val_samples = 534     # Number of validation images
+    batch_size = 16
     steps_per_epoch = num_train_samples // batch_size
     validation_steps = num_val_samples // batch_size
 
-    # Train the model for 1 epoch (for testing)
+    # Early stopping to prevent overfitting
+    early_stopping = EarlyStopping(
+        monitor='val_loss',      # Monitor validation loss
+        patience=3,              # Stop after 3 epochs of no improvement
+        restore_best_weights=True # Restore the best weights at the end
+    )
+
     history = model.fit(
         train_dataset,
         validation_data=val_dataset,
-        epochs=10,
+        epochs=25,  # Train for more epochs
         steps_per_epoch=steps_per_epoch,
-        validation_steps=validation_steps
+        validation_steps=validation_steps,
+        callbacks=[early_stopping] 
     )
 
-    model.summary()
+    # Save the trained model
+    model.save('mobilenetv2_usd_detector.h5')
 
     # Export to TFLite
     # Create a new model without data augmentation for inference
     inference_model = keras.Sequential([
-        keras.layers.InputLayer(shape=(224, 224, 3)),
-        keras.layers.Conv2D(32, 3, activation='relu'),
-        keras.layers.MaxPooling2D(),
-        keras.layers.Conv2D(64, 3, activation='relu'),
-        keras.layers.MaxPooling2D(),
-        keras.layers.Conv2D(64, 3, activation='relu'),
-        keras.layers.MaxPooling2D(),
-        keras.layers.Dropout(0.2),
-        keras.layers.Flatten(),
+        keras.layers.Input(shape=(224, 224, 3)),
+        base_model,  # Use the same base model
+        keras.layers.GlobalAveragePooling2D(),
         keras.layers.Dense(128, activation='relu'),
-        keras.layers.Dense(7, activation='softmax')  # 7 classes for different denominations
+        keras.layers.Dense(7, activation='softmax')
     ])
 
-    # Copy the trained weights from the original model to the inference model
-    for layer, inference_layer in zip(model.layers[1:], inference_model.layers):
-        inference_layer.set_weights(layer.get_weights())
-
-    # Create a representative dataset for quantization
-    def representative_data_gen():
-        for image, _ in train_dataset.take(100):  # Use 100 samples for calibration
-            yield [image]
-
-    # Create a concrete function for the inference model
-    run_model = tf.function(lambda x: inference_model(x))
-    concrete_func = run_model.get_concrete_function(
-        tf.TensorSpec(inference_model.inputs[0].shape, inference_model.inputs[0].dtype)
-    )
+    # Set the weights of the inference model to match the trained model
+    inference_model.set_weights(model.get_weights())
 
     # Convert the model to TFLite
-    converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
-    converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.representative_dataset = representative_data_gen  # Add representative dataset
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.uint8  # Optional: Set input type to uint8
-    converter.inference_output_type = tf.uint8  # Optional: Set output type to uint8
+    converter = tf.lite.TFLiteConverter.from_keras_model(inference_model)
+    tflite_model = converter.convert()
 
-    tflite_quantized_model = converter.convert()
-
-    # Save the TFLite model
-    with open('usd_detector.tflite', 'wb') as f:
-        f.write(tflite_quantized_model)
+    # Save the TFLite model to android app
+    with open('../android-app/app/src/main/ml/usd_detector.tflite', 'wb') as f:
+        f.write(tflite_model)
 
 if __name__ == '__main__':
     train_model()
