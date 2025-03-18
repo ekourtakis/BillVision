@@ -32,6 +32,9 @@ def train_model():
         batch_size=32               # Set batch size
     )
 
+    class_names = train_dataset.class_names
+    print(class_names)
+
     train_dataset = train_dataset.map(lambda x, y: (x / 255.0, y))
     val_dataset = val_dataset.map(lambda x, y: (x / 255.0, y))
 
