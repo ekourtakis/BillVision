@@ -22,4 +22,5 @@ model/USD_Total-1/
 .env
 model/usd_detector.tflite
 model/usd_detection-1/
+venv311
 
