@@ -32,23 +32,25 @@ class ModelHandler(private val context: Context) {
                 .build()
             val processedImage = preprocessOp.process(tensorImage)
 
-            val outputFeature0 = model.process(processedImage.tensorBuffer)
+            // run inference
+            val outputs = model.process(processedImage)
 
             // Get output values
-            val outputArray = outputFeature0.outputFeature0AsTensorBuffer.floatArray
+            val probabilityList = outputs.probabilityAsCategoryList
 
             // Find the highest confidence prediction
-            val maxIndex = outputArray.indices.maxByOrNull { outputArray[it] } ?: -1
-            val confidence = if (maxIndex != -1) outputArray[maxIndex] else 0f
+            val maxIndex = probabilityList.indices.maxByOrNull { probabilityList[it].score } ?: -1
+            val confidence = if (maxIndex != -1) probabilityList[maxIndex].score else 0f
 
             Log.d("ModelHandler", "Inference: $maxIndex, $confidence")
 
             return BillInference(
-                billLabelIndex = maxIndex, confidence = confidence, photoPath = photoPath
+                name = BillLabel.fromIndex(maxIndex).name,
+                confidence = confidence
             )
         } catch (e: Exception) {
             e.printStackTrace()
-            return BillInference(billLabelIndex = -1, confidence = 0f, photoPath=photoPath)
+            return BillInference(name = "Unknown", confidence = 0f)
         } finally {
             model.close()
         }
