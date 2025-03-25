@@ -80,7 +80,7 @@ fun CameraPreview(
 
     val analyzer = remember {
         BillImageAnalyzer(
-            classifier = TfLiteBillClassifier(
+            classifier = BillClassifier(
                 context = context
             ),
             onResults = {
