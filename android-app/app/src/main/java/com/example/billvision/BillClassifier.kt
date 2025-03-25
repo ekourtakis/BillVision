@@ -2,6 +2,10 @@ package com.example.billvision
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.media.ExifInterface
+import android.util.Log
 import android.view.Surface
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
@@ -9,6 +13,7 @@ import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.core.vision.ImageProcessingOptions
 import org.tensorflow.lite.task.vision.classifier.ImageClassifier
 import org.tensorflow.lite.task.vision.classifier.ImageClassifier.ImageClassifierOptions
+import java.io.File
 
 class BillClassifier(
     private val context: Context,
@@ -37,6 +42,25 @@ class BillClassifier(
         } catch (e: IllegalStateException) {
             e.printStackTrace()
         }
+    }
+
+    fun classify(imagePath: String): List<BillInference> {
+        val file = File(imagePath)
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+
+        // Get the rotation from the EXIF data
+        val exif = ExifInterface(file.absolutePath)
+        val rotationDegrees = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        val rotation = when (rotationDegrees) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270
+            else -> 0
+        }
+
+        Log.d("BillClassifier", "Rotation: $rotation")
+
+        return classify(bitmap, rotation)
     }
 
     fun classify(bitmap: Bitmap, rotation: Int): List<BillInference> {

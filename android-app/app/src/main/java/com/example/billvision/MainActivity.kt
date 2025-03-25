@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_INFERENCE = "bill_inference"
     }
 
-    private val modelHandler = ModelHandler(this)
+    private val classifier = BillClassifier(this)
 
     private val cameraLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == RESULT_OK) {
             val photoPath = result.data?.getStringExtra(EXTRA_PHOTO_PATH)
             if (photoPath != null) {
-                val inference = modelHandler.classifyImage(photoPath)
+                val inference = classifier.classify(photoPath)[0]
 
                 val intent = Intent(this, ResultActivity::class.java).apply {
                     putExtra(EXTRA_INFERENCE, inference)
