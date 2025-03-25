@@ -10,22 +10,24 @@ class BillImageAnalyzer(
     private var frameSkipCounter = 0
 
     override fun analyze(image: ImageProxy) {
-        if (frameSkipCounter % 60 == 0) {
-            val rotationDegrees = image.imageInfo.rotationDegrees
-            val bitmap = image
-                .toBitmap()
-                .centerCrop(321, 321)
-
-            val results = bitmap?.let { classifier.classify(it, rotationDegrees) }
-
-            if (results != null) {
-                onResults(results)
-            }
-        }
-
+        // only analyze every 60th frame to improve performance
+        if (frameSkipCounter % 60 != 0)
+            return // skip
         frameSkipCounter++
+
+
+        val rotationDegrees = image.imageInfo.rotationDegrees
+        val bitmap = image
+            .toBitmap()
+            .centerCrop(321, 321)
+
+        // classify the image
+        val results = bitmap?.let { classifier.classify(it, rotationDegrees) }
+
+        if (results != null) {
+            onResults(results)
+        }
 
         image.close()
     }
-
 }
