@@ -2,6 +2,7 @@ package com.example.billvision
 
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import com.example.billvision.utils.centerCrop
 
 class BillImageAnalyzer(
     private val classifier: BillClassifier,
