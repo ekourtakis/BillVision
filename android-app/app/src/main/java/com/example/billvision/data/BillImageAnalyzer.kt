@@ -1,7 +1,9 @@
-package com.example.billvision
+package com.example.billvision.data
 
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import com.example.billvision.data.model.BillInference
+import com.example.billvision.utils.centerCrop
 
 class BillImageAnalyzer(
     private val classifier: BillClassifier,

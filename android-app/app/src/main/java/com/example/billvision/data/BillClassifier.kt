@@ -1,12 +1,12 @@
-package com.example.billvision
+package com.example.billvision.data
 
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.ImageDecoder
 import android.media.ExifInterface
-import android.util.Log
 import android.view.Surface
+import com.example.billvision.data.model.BillInference
+import com.example.billvision.data.model.Result
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.task.core.BaseOptions

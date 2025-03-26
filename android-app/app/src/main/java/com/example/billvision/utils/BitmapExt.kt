@@ -1,4 +1,4 @@
-package com.example.billvision
+package com.example.billvision.utils
 
 import android.graphics.Bitmap
 import android.graphics.Canvas

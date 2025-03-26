@@ -1,4 +1,4 @@
-package com.example.billvision
+package com.example.billvision.data.model
 
 import java.io.Serializable
 
