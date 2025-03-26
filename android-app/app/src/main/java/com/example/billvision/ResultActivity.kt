@@ -2,7 +2,6 @@ package com.example.billvision
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.media.ThumbnailUtils
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,23 +22,17 @@ class ResultActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val inference = intent.getSerializableExtra(MainActivity.EXTRA_INFERENCE, BillInference::class.java)
-        if (inference == null) {
+        val result = intent.getSerializableExtra(MainActivity.EXTRA_RESULT, Result::class.java)
+        if (result == null) {
             finish()
             return
         }
 
-        var bitmap = BitmapFactory.decodeFile(inference.photoPath)
-
-        // make the image square
-        val dimension = bitmap.height.coerceAtMost(bitmap.width)
-        bitmap = ThumbnailUtils.extractThumbnail(bitmap, dimension, dimension)
-
         setContent {
             ResultDisplay(
-                BillLabel.fromIndex(inference.billLabelIndex).name,
-                inference.confidence,
-                bitmap
+                result.billInference.name,
+                result.billInference.confidence,
+                BitmapFactory.decodeFile(result.filePath)
             )
         }
     }
@@ -53,10 +46,12 @@ class ResultActivity : ComponentActivity() {
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.padding(16.dp)
         ) {
-            Image(bitmap = bitmap.asImageBitmap(), contentDescription = "Photo taken")
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Captured Image",
+                modifier = Modifier
+                    .padding(bottom = 16.dp)
+            )
             Text(
                 text = "Bill: $name",
                 fontSize = 24.sp,

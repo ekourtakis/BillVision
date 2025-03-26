@@ -8,25 +8,35 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
 import androidx.camera.core.ImageCaptureException
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -63,8 +73,24 @@ fun CameraPreview(
 ) {
     val surfaceRequest by viewModel.surfaceRequest.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    LaunchedEffect(lifecycleOwner) {
-        viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
+
+    var classifications by remember {
+        mutableStateOf(emptyList<BillInference>())
+    }
+
+    val analyzer = remember {
+        BillImageAnalyzer(
+            classifier = BillClassifier(
+                context = context
+            ),
+            onResults = {
+                classifications = it
+            }
+        )
+    }
+
+    LaunchedEffect(lifecycleOwner, analyzer) {
+        viewModel.bindToCamera(context.applicationContext, lifecycleOwner, analyzer)
     }
 
     Box(
@@ -76,6 +102,26 @@ fun CameraPreview(
                 surfaceRequest = request,
                 modifier = modifier
             )
+        }
+
+        // New Column for displaying classifications
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+        ) {
+            classifications.forEach {
+                Text(
+                    text = "${it.name} - ${it.confidence.times(100).toInt()}%",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(8.dp),
+                    textAlign = TextAlign.Center,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
         Button(
@@ -98,16 +144,32 @@ class CameraPreviewViewModel : ViewModel() {
 
     private val imageCapture = ImageCapture.Builder().build()
 
+    private val imageAnalyzerUseCase = ImageAnalysis.Builder().build()
+
     private val cameraPreviewUseCase = Preview.Builder().build().apply {
         setSurfaceProvider { newSurfaceRequest ->
             _surfaceRequest.update { newSurfaceRequest }
         }
     }
 
-    suspend fun bindToCamera(appContext: Context, lifecycleOwner: LifecycleOwner) {
+    suspend fun bindToCamera(
+        appContext: Context,
+        lifecycleOwner: LifecycleOwner,
+        analyzer: BillImageAnalyzer
+    ) {
         val processCameraProvider = ProcessCameraProvider.awaitInstance(appContext)
+
+        imageAnalyzerUseCase.setAnalyzer(
+            ContextCompat.getMainExecutor(appContext),
+            analyzer
+        )
+
         processCameraProvider.bindToLifecycle(
-            lifecycleOwner, DEFAULT_BACK_CAMERA, cameraPreviewUseCase, imageCapture
+            lifecycleOwner,
+            DEFAULT_BACK_CAMERA,
+            cameraPreviewUseCase,
+            imageCapture,
+            imageAnalyzerUseCase
         )
 
         // Cancellation signals we're done with the camera

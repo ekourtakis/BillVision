@@ -28,10 +28,10 @@ import com.google.accompanist.permissions.shouldShowRationale
 class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_PHOTO_PATH = "photo_path"
-        const val EXTRA_INFERENCE = "bill_inference"
+        const val EXTRA_RESULT = "bill_inference"
     }
 
-    private val modelHandler = ModelHandler(this)
+    private val classifier = BillClassifier(this)
 
     private val cameraLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -39,10 +39,10 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == RESULT_OK) {
             val photoPath = result.data?.getStringExtra(EXTRA_PHOTO_PATH)
             if (photoPath != null) {
-                val inference = modelHandler.classifyImage(photoPath)
+                val result = classifier.classifyFromPhotoPath(photoPath)
 
                 val intent = Intent(this, ResultActivity::class.java).apply {
-                    putExtra(EXTRA_INFERENCE, inference)
+                    putExtra(EXTRA_RESULT, result)
                 }
 
                 resultLauncher.launch(intent)
