@@ -15,7 +15,7 @@ class BillImageAnalyzer(
             return // skip
         frameSkipCounter++
 
-
+        // get rotation
         val rotationDegrees = image.imageInfo.rotationDegrees
         val bitmap = image
             .toBitmap()

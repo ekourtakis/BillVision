@@ -44,7 +44,8 @@ class BillClassifier(
         }
     }
 
-    fun classify(imagePath: String): List<BillInference> {
+    // classify from a filepath
+    fun classifyFromPhotoPath(imagePath: String): Result {
         val file = File(imagePath)
         val bitmap = BitmapFactory.decodeFile(file.absolutePath)
 
@@ -58,9 +59,9 @@ class BillClassifier(
             else -> 0
         }
 
-        Log.d("BillClassifier", "Rotation: $rotation")
+        val inference = classify(bitmap, rotation)[0]
 
-        return classify(bitmap, rotation)
+        return Result(inference, imagePath)
     }
 
     fun classify(bitmap: Bitmap, rotation: Int): List<BillInference> {
@@ -79,7 +80,7 @@ class BillClassifier(
             classifications.categories.map { category ->
                 BillInference(
                     name = category.label,
-                    confidence = category.score,
+                    confidence = category.score
                 )
             }
         }?.distinctBy { it.name } ?: emptyList()
