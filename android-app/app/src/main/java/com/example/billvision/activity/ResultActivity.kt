@@ -1,4 +1,4 @@
-package com.example.billvision
+package com.example.billvision.activity
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -16,13 +16,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.billvision.MainActivity
+import com.example.billvision.Result
 
 class ResultActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val result = intent.getSerializableExtra(MainActivity.EXTRA_RESULT, Result::class.java)
+        val result = intent.getSerializableExtra(MainActivity.Companion.EXTRA_RESULT, Result::class.java)
         if (result == null) {
             finish()
             return

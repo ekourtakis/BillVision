@@ -1,4 +1,4 @@
-package com.example.billvision
+package com.example.billvision.activity
 
 import android.content.Context
 import android.content.Intent
@@ -41,6 +41,10 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.billvision.BillClassifier
+import com.example.billvision.BillImageAnalyzer
+import com.example.billvision.BillInference
+import com.example.billvision.MainActivity
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,7 +59,7 @@ class CameraActivity : ComponentActivity() {
             val viewModel = remember { CameraPreviewViewModel() }
             CameraPreview(viewModel) { photoPath ->
                 val intent = Intent().apply {
-                    putExtra(MainActivity.EXTRA_PHOTO_PATH, photoPath)
+                    putExtra(MainActivity.Companion.EXTRA_PHOTO_PATH, photoPath)
                 }
                 setResult(RESULT_OK, intent)
                 finish()
