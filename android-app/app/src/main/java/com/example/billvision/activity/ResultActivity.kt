@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.billvision.MainActivity
-import com.example.billvision.Result
+import com.example.billvision.data.model.Result
 
 class ResultActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

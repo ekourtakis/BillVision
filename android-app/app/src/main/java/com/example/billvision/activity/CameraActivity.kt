@@ -41,9 +41,9 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.billvision.BillClassifier
-import com.example.billvision.BillImageAnalyzer
-import com.example.billvision.BillInference
+import com.example.billvision.data.BillClassifier
+import com.example.billvision.data.BillImageAnalyzer
+import com.example.billvision.data.model.BillInference
 import com.example.billvision.MainActivity
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -1,4 +1,4 @@
-package com.example.billvision
+package com.example.billvision.data.model
 
 enum class BillLabel(val label: String) {
     HUNDRED_DOLLAR("Hundred Dollar"),
