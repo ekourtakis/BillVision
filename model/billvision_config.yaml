@@ -1,0 +1,23 @@
+# Paths relative to this yaml file
+train: USD_Total-1/train/images
+val: USD_Total-1/valid/images  # Make sure your validation folder is named 'valid', not 'val'
+test: USD_Total-1/test/images  # Optional: path to test images (if you use a test set)
+
+# Classes
+nc: 7
+names:
+  - '1_dollar'      # Simpler name recommended (maps to class ID 0)
+  - '50_dollar'     # Simpler name recommended (maps to class ID 1)
+  - '10_dollar'     # Simpler name recommended (maps to class ID 2)
+  - '2_dollar'      # Simpler name recommended (maps to class ID 3) - Assuming this is a $2 bill?
+  - '20_dollar'     # Simpler name recommended (maps to class ID 4)
+  - '5_dollar'      # Simpler name recommended (maps to class ID 5)
+  - '100_dollar'    # Simpler name recommended (maps to class ID 6)
+
+# Roboflow metadata (doesn't affect training)
+roboflow:
+  license: CC BY 4.0
+  project: usd_total
+  url: https://universe.roboflow.com/jm-cbkgb/usd_total/dataset/1
+  version: 1
+  workspace: jm-cbkgb
