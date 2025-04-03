@@ -36,7 +36,7 @@ android {
     }
     buildFeatures {
         compose = true
-        mlModelBinding = true
+        mlModelBinding = false
     }
 }
 
@@ -65,14 +65,36 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.accompanist.permissions)
 
-    implementation(libs.tensorflow.lite.support)
-    implementation(libs.tensorflow.lite.metadata)
+    implementation(libs.kotlinx.coroutines.android)
+
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.camera.view) // Keep if using PreviewView, otherwise maybe removable
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+    debugImplementation(libs.androidx.ui.tooling)
+    debugImplementation(libs.androidx.ui.test.manifest)
+
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.compose)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.accompanist.permissions)
 
     implementation("io.coil-kt:coil-compose:2.5.0")
 
-    // TensorFlow Lite
-    implementation("org.tensorflow:tensorflow-lite-gpu-delegate-plugin:0.4.0")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0") //Keep this, it's the correct version
-    implementation("org.tensorflow:tensorflow-lite-task-vision:0.4.4")
-    implementation("org.tensorflow:tensorflow-lite-metadata:0.1.0-rc2")
+    // --- New TensorFlow Lite Section ---
+    // Use specific, compatible versions for the Interpreter API
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")      // Core TFLite interpreter runtime
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4") // Support library (for TensorImage, ImageProcessor etc.)
+
 }
