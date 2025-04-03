@@ -3,29 +3,58 @@ from dotenv import load_dotenv
 from ultralytics import YOLO
 import os
 import sys
+import shutil # Import for checking required libraries like tflite_runtime
+
+# Load environment variables from .env file first
+load_dotenv()
 
 # --- Configuration ---
 MODEL_CONFIG = "yolov8s.pt"
-EPOCHS = 100
+EPOCHS = 120
 IMAGE_SIZE = 640
-BATCH_SIZE = 16
+BATCH_SIZE = 8
 DEVICE = None
 WORKERS = 8
 
 # --- Path Configuration (Relative to this script's location) ---
 CUSTOM_YAML_PATH = "billvision_config.yaml"
 EXPECTED_DATASET_DIR = "USD_Total-1"
-PROJECT_OUTPUT_DIR = "runs" # The main folder for all runs (will be created inside 'model/')
+PROJECT_OUTPUT_DIR = "runs" # The main folder for all runs
 EXPERIMENT_NAME = "dollar_detector_custom_yaml" # Subfolder within PROJECT_OUTPUT_DIR/detect/
+
+# --- TFLite Export Configuration ---
+EXPORT_TFLITE = True          # Set to True to enable TFLite export after training
+TFLITE_INT8 = True            # Use INT8 quantization (recommended for mobile)
+# If TFLITE_INT8 is True, the DATA argument (CUSTOM_YAML_PATH) is required for calibration
 
 # --- Roboflow Config ---
 ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY")
-ROBOFLOW_WORKSPACE = "jm-cbkgb"
-ROBOFLOW_PROJECT = "usd_total"
+ROBOFLOW_WORKSPACE = "scratch-enrjz"
+ROBOFLOW_PROJECT = "usd_total-ns6qv"
 ROBOFLOW_VERSION = 1
 # --- ---
 
+def check_tflite_dependencies():
+    """Checks if TensorFlow and TFLite runtime are likely installed."""
+    try:
+        import tensorflow
+        # Optionally check for tflite_runtime if specific functions were needed
+        # import tflite_runtime
+        print("TensorFlow found (required for TFLite export).")
+        return True
+    except ImportError:
+        print("WARNING: TensorFlow not found. TFLite export requires TensorFlow.")
+        print("Please install it: pip install tensorflow")
+        # For INT8 quantization on some systems, tflite-support might also be useful
+        # print("For INT8 quantization, consider: pip install tflite-support")
+        return False
+
 def main():
+    # --- Check Roboflow API Key ---
+    if not ROBOFLOW_API_KEY:
+        print("FATAL ERROR: Roboflow API key not found. Set ROBOFLOW_API_KEY environment variable or in .env file.")
+        sys.exit(1)
+
     # --- Check if Custom YAML exists ---
     if not os.path.exists(CUSTOM_YAML_PATH):
         print(f"FATAL ERROR: Custom configuration file '{CUSTOM_YAML_PATH}' not found.")
@@ -56,55 +85,119 @@ def main():
     # --- Get Absolute Path for YAML ---
     absolute_yaml_path = os.path.abspath(CUSTOM_YAML_PATH)
 
-    print("\n--- Starting YOLOv8 Training ---")
-    print(f"Model: {MODEL_CONFIG}")
-    print(f"Using Custom Dataset YAML: {absolute_yaml_path}")
-    # --- Specify Output Location ---
-    print(f"Project Output Directory (relative to script): ./{PROJECT_OUTPUT_DIR}")
-    print(f"Experiment Name (sub-directory): {EXPERIMENT_NAME}")
-    # --- ---
-    print(f"Epochs: {EPOCHS}")
-    print(f"Image Size: {IMAGE_SIZE}")
-    print(f"Batch Size: {BATCH_SIZE}")
-    print(f"Device: {'Auto-detect' if DEVICE is None else DEVICE}")
-    print(f"Workers: {WORKERS}")
-    print("-" * 30)
+    # --- Training ---
+    training_successful = False
+    best_model_path = None
+    model = None # Initialize model variable
 
-    # 1. Load the model
-    model = YOLO(MODEL_CONFIG)
-
-    # 2. Train the model
     try:
+        print("\n--- Starting YOLOv8 Training ---")
+        print(f"Model: {MODEL_CONFIG}")
+        print(f"Using Custom Dataset YAML: {absolute_yaml_path}")
+        print(f"Project Output Directory (relative to script): ./{PROJECT_OUTPUT_DIR}")
+        print(f"Experiment Name (sub-directory): {EXPERIMENT_NAME}")
+        print(f"Epochs: {EPOCHS}")
+        print(f"Image Size: {IMAGE_SIZE}")
+        print(f"Batch Size: {BATCH_SIZE}")
+        print(f"Device: {'Auto-detect' if DEVICE is None else DEVICE}")
+        print(f"Workers: {WORKERS}")
+        print("-" * 30)
+
+        # 1. Load the base model
+        model = YOLO(MODEL_CONFIG)
+
+        # 2. Train the model
         results = model.train(
             data=absolute_yaml_path,
             epochs=EPOCHS,
             imgsz=IMAGE_SIZE,
             batch=BATCH_SIZE,
-            # --- ADD/MODIFY project and name arguments ---
-            project=PROJECT_OUTPUT_DIR, # Specify the main output directory
-            name=EXPERIMENT_NAME,       # Specify the specific run's sub-directory
-            # --- ---
+            project=PROJECT_OUTPUT_DIR,
+            name=EXPERIMENT_NAME,
             device=DEVICE,
             workers=WORKERS,
-            exist_ok=False # Set to True if you want to allow overwriting existing experiment folders
+            exist_ok=True
         )
         print("-" * 30)
-        # Note: The final save directory path is usually runs/detect/experiment_name
-        # You can access it via the trainer object if needed, but it prints logs anyway.
         print("Training finished successfully!")
-        print(f"Results saved within the '{PROJECT_OUTPUT_DIR}' directory.")
 
+        # Construct the expected path to the best model
+        # Ultralytics saves runs under project/task_type/experiment_name
+        # Assuming 'detect' is the task type inferred. Adjust if needed.
+        save_dir = results.save_dir
+
+        print(f"Actual save directory reported by Ultralytics: {save_dir}") # Add this print for debugging!
+
+        best_model_path = os.path.join(save_dir, 'weights', 'best.pt')
+        print(f"Best model path: {best_model_path}")
+
+        if os.path.exists(best_model_path):
+            print(f"Best model saved at: {best_model_path}")
+            training_successful = True
+        else:
+            print(f"WARNING: Training finished, but best model not found at expected location: {best_model_path}")
+            print("Skipping TFLite export.")
 
     except Exception as e:
         print("-" * 30)
-        # Basic error handling remains the same
+        print(f"An error occurred during training: {e}")
+        # Further error checking remains the same
         if "Dataset" in str(e) and "images not found" in str(e):
-             print(f"An error occurred during training, likely path related: {e}")
              print("\nPossible causes:")
              print(f" - YOLO could not find images based on paths in your custom YAML: '{absolute_yaml_path}'")
              print(f" - Check the 'train:', 'val:', 'test:' paths inside that YAML file (e.g., '{EXPECTED_DATASET_DIR}/train/images').")
-        else:
-            print(f"An error occurred during training: {e}")
+        # Exit or handle training failure appropriately
+        sys.exit(1) # Exit if training failed
+
+
+    # --- TFLite Export (only if training was successful and export is enabled) ---
+    if training_successful and EXPORT_TFLITE:
+        print("\n--- Starting TFLite Export ---")
+
+        if not check_tflite_dependencies():
+             print("Cannot perform TFLite export due to missing dependencies. Please install TensorFlow.")
+             sys.exit(1)
+
+        try:
+            # Load the *best* trained model specifically for export
+            export_model = YOLO(best_model_path)
+
+            print(f"Exporting model from: {best_model_path}")
+            print(f"Format: tflite")
+            print(f"Image Size: {IMAGE_SIZE}")
+            print(f"INT8 Quantization: {TFLITE_INT8}")
+            if TFLITE_INT8:
+                print(f"Using calibration data from: {absolute_yaml_path}")
+
+            # Perform the export
+            tflite_output_path = export_model.export(
+                format="tflite",
+                imgsz=IMAGE_SIZE,
+                int8=False,
+                half=True,
+                # data=absolute_yaml_path if TFLITE_INT8 else None # data is needed for int8 calibration
+            )
+            print("-" * 30)
+            print(f"TFLite export successful!")
+            print(f"Model saved to: {tflite_output_path}") # export() returns the path
+
+            target_path = "../android-app/app/src/main/assets/usd_detector.tflite"
+
+            if os.path.exists(tflite_output_path):
+                print(f"Moving exported model to final destination: {target_path}")
+                shutil.move(tflite_output_path, target_path)
+                print(f"TFLite model successfully moved.")
+            else:
+                print(f"Error moving TFLite model from {tflite_output_path} to {target_path}")
+
+        except Exception as e:
+            print("-" * 30)
+            print(f"An error occurred during TFLite export: {e}")
+            # You might want more specific error handling here
+
+    elif not EXPORT_TFLITE:
+        print("\nTFLite export is disabled in the script configuration.")
+    # --- End of main ---
 
 if __name__ == '__main__':
     main()
