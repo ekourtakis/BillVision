@@ -1,0 +1,5 @@
+runs/
+.venv/
+inference_output/
+USD_Total-1/
+yolo*.pt

@@ -3,6 +3,7 @@ package com.example.billvision.activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,10 +43,10 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.billvision.data.BillClassifier
 import com.example.billvision.data.BillImageAnalyzer
 import com.example.billvision.data.model.BillInference
 import com.example.billvision.MainActivity
+import com.example.billvision.data.BillDetector
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,19 +80,31 @@ fun CameraPreview(
     val surfaceRequest by viewModel.surfaceRequest.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    val detector = remember { BillDetector(context) }
+
     var classifications by remember {
         mutableStateOf(emptyList<BillInference>())
     }
 
-    val analyzer = remember {
+    val analyzer = remember(detector) {
         BillImageAnalyzer(
-            classifier = BillClassifier(
-                context = context
-            ),
-            onResults = {
-                classifications = it
+            detector = detector,
+            onResults = { detectedBills ->
+                Log.d(
+                    "CameraActivity",
+                    "onResults called with ${detectedBills.size} detections: " +
+                            "${detectedBills.joinToString { it.name + "("+String.format("%.2f", it.confidence)+")" }}"
+                )
+
+                classifications = detectedBills
             }
         )
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            detector.close()
+        }
     }
 
     LaunchedEffect(lifecycleOwner, analyzer) {
@@ -114,16 +128,17 @@ fun CameraPreview(
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
-            classifications.forEach {
+            val resultsToShow = classifications.take(3)
+            resultsToShow.forEach {
                 Text(
-                    text = "${it.name} - ${it.confidence.times(100).toInt()}%",
+                    text = "${it.name} - ${it.confidence * 100}%",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .padding(8.dp),
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha=0.7f))
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     textAlign = TextAlign.Center,
-                    fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
@@ -168,13 +183,19 @@ class CameraPreviewViewModel : ViewModel() {
             analyzer
         )
 
-        processCameraProvider.bindToLifecycle(
-            lifecycleOwner,
-            DEFAULT_BACK_CAMERA,
-            cameraPreviewUseCase,
-            imageCapture,
-            imageAnalyzerUseCase
-        )
+        try {
+            processCameraProvider.unbindAll() // clean slate
+
+            processCameraProvider.bindToLifecycle(
+                lifecycleOwner,
+                DEFAULT_BACK_CAMERA,
+                cameraPreviewUseCase,
+                imageCapture,
+                imageAnalyzerUseCase
+            )
+        } catch (e: Exception) {
+            Log.e("CameraViewModel", "use case binding failed: ${e.message}", e)
+        }
 
         // Cancellation signals we're done with the camera
         try { awaitCancellation() } finally { processCameraProvider.unbindAll() }
