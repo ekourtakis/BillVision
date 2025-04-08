@@ -28,7 +28,7 @@ class BillImageAnalyzer(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private var frameSkipCounter = 0
-    private val skipFrames = 60
+    private val skipFrames = 10
 
     private var currentDetectionJob: Job? = null
 
@@ -43,21 +43,16 @@ class BillImageAnalyzer(
 
         currentDetectionJob?.cancel()
 
-        val bitmap = imageProxy.toBitmap()
-
-        imageProxy.close()
-
         currentDetectionJob = scope.launch {
             try {
-                // b) Run detection on the converted bitmap
-                // NOTE: Rotation is passed separately if detector needs it,
-                // but often YUV->Bitmap conversion handles orientation if done correctly.
-                // Assuming detector handles resize internally.
-                val results =
-                    detector.detect(bitmap) // Pass rotationDegrees if needed by detect()
+                val bitmap = imageProxy.toBitmap()
+                Log.d("BillImageAnalyzer", "Bitmap size: ${bitmap.width}x${bitmap.height}. calling detector...")
+                val results = detector.detect(bitmap) // Pass rotationDegrees if needed by detect()
+                Log.d("BillImageAnalyzer", "Detection returned ${results.size} results.")
 
                 // c) Switch to Main thread to post results safely
                 withContext(Dispatchers.Main) {
+                    Log.d("BillImageAnalyzer", "calling onResults on main thread.")
                     onResults(results)
                 }
             } catch (e: Exception) {
@@ -68,6 +63,10 @@ class BillImageAnalyzer(
                 Log.e("BillImageAnalyzer", "Error during background detection: ${e.message}", e)
                 // Post empty results on error
                 withContext(Dispatchers.Main) { onResults(emptyList()) }
+            } finally {
+                currentDetectionJob?.cancel() // Cancel any active job
+                scope.cancel() // Cancel the scope itself to release resources
+                Log.i("BillImageAnalyzer", "Coroutine scope cancelled.")
             }
         }
     }
