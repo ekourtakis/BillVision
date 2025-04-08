@@ -1,7 +1,7 @@
 # Paths relative to this yaml file
-train: USD_Total-1/train/images
-val: USD_Total-1/valid/images  # Make sure your validation folder is named 'valid', not 'val'
-test: USD_Total-1/test/images  # Optional: path to test images (if you use a test set)
+train: USD_Total-2/train/images
+val: USD_Total-2/valid/images  # Make sure your validation folder is named 'valid', not 'val'
+test: USD_Total-2/test/images  # Optional: path to test images (if you use a test set)
 
 # Classes
 nc: 7

@@ -1,5 +1,5 @@
 runs/
 .venv/
 inference_output/
-USD_Total-1/
+USD_Total-*/
 yolo*.pt

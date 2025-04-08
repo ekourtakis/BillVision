@@ -16,12 +16,6 @@ BATCH_SIZE = 8
 DEVICE = None
 WORKERS = 8
 
-# --- Path Configuration (Relative to this script's location) ---
-CUSTOM_YAML_PATH = "billvision_config.yaml"
-EXPECTED_DATASET_DIR = "USD_Total-1"
-PROJECT_OUTPUT_DIR = "runs" # The main folder for all runs
-EXPERIMENT_NAME = "dollar_detector_custom_yaml" # Subfolder within PROJECT_OUTPUT_DIR/detect/
-
 # --- TFLite Export Configuration ---
 EXPORT_TFLITE = True          # Set to True to enable TFLite export after training
 TFLITE_INT8 = True            # Use INT8 quantization (recommended for mobile)
@@ -31,7 +25,13 @@ TFLITE_INT8 = True            # Use INT8 quantization (recommended for mobile)
 ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY")
 ROBOFLOW_WORKSPACE = "scratch-enrjz"
 ROBOFLOW_PROJECT = "usd_total-ns6qv"
-ROBOFLOW_VERSION = 1
+ROBOFLOW_VERSION = 2
+
+# --- Path Configuration (Relative to this script's location) ---
+CUSTOM_YAML_PATH = "billvision_config.yaml"
+EXPECTED_DATASET_DIR = "USD_Total-" + str(ROBOFLOW_VERSION)
+PROJECT_OUTPUT_DIR = "runs" # The main folder for all runs
+EXPERIMENT_NAME = "dollar_detector_custom_yaml" # Subfolder within PROJECT_OUTPUT_DIR/detect/
 # --- ---
 
 def check_tflite_dependencies():
