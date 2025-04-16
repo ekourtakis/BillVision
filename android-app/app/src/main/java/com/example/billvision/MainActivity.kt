@@ -2,6 +2,7 @@ package com.example.billvision
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.RectF
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -63,7 +64,7 @@ class MainActivity : ComponentActivity() {
                     Log.w("BillVision", "No bills detected in photo: $photoPath")
                     // Handle case where nothing is detected (e.g., show a Toast or default result)
                     // For now, let's launch ResultActivity with a "not found" state
-                    val notFoundResult = Result(BillInference("Not Found", 0f), photoPath)
+                    val notFoundResult = Result(BillInference("Not Found", 0f, RectF()), photoPath)
                     val intent = Intent(this, ResultActivity::class.java).apply {
                         putExtra(EXTRA_RESULT, notFoundResult)
                     }

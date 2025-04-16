@@ -3,6 +3,7 @@ package com.example.billvision.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.RectF
 import android.util.Log
 import com.example.billvision.data.model.BillInference
 import okio.IOException
@@ -16,11 +17,14 @@ import org.tensorflow.lite.support.image.ops.ResizeOp
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.max
+import kotlin.math.min
 
 class BillDetector(
     private val context: Context,
     private val modelPath: String = "usd_detector.tflite",
-    private val confidenceThreshold: Float = 0.5f
+    private val confidenceThreshold: Float = 0.5f,
+    private val iouThreshold: Float = 0.45f // for no max suppression
 ) {
     private var interpreter: Interpreter? = null
     private var inputWidth = 0
@@ -29,6 +33,7 @@ class BillDetector(
     private var outputShape: IntArray = intArrayOf()
     private var numClasses = 0
     private var numDetections = 0
+    private val boxCoordsSize = 4
 
     private val labels = listOf(
         "1_dollar", "50_dollar", "10_dollar", "2_dollar",
@@ -59,7 +64,7 @@ class BillDetector(
             Log.i("BillDetector", "Model loaded. Input: ${inputShape.joinToString()}, Output: ${outputShape.joinToString()}")
 
             if (outputShape.size == 3 && outputShape[0] == 1) {
-                numClasses = outputShape[1] - 4
+                numClasses = outputShape[1] - boxCoordsSize
                 numDetections = outputShape[2]
                 if (numClasses != labels.size) {
                     Log.e("BillDetector", "Model output class count ${numClasses}, expected labels.size == ${labels.size}")
@@ -80,6 +85,12 @@ class BillDetector(
     fun detectFromPhotoPath(imagePath: String): List<BillInference> {
         return try {
             val bitmap = BitmapFactory.decodeFile(File(imagePath).absolutePath)
+
+            if (bitmap == null) {
+                Log.e("BillDetector", "Failed to decode bitmap from path: $imagePath")
+                return emptyList()
+            }
+
             detect(bitmap)
         } catch (e: Exception) {
             Log.e("BillDetector", "Error processing photo path $imagePath: ${e.message}")
@@ -126,20 +137,30 @@ class BillDetector(
             return emptyList()
         }
 
-        val results = mutableListOf<BillInference>()
+        // before no mass suppression
+        val preNMSDetections = mutableListOf<BillInference>()
 
         val outputRowStride = outputShape[1]
-        val boxCoordsSize = 4
 
         for (i in 0 until numDetections) {
-            val offset = i * outputRowStride
+            val currentBoxOffset = i * outputRowStride
 
-            var maxClassScore = 0.0f
+            // extract raw data and convert
+            val cx = outputArray.get(currentBoxOffset + 0) * inputWidth
+            val cy = outputArray.get(currentBoxOffset + 1) * inputHeight
+            val w = outputArray.get(currentBoxOffset + 2) * inputWidth
+            val h = outputArray.get(currentBoxOffset + 3) * inputHeight
+
+            val left = cx - w / 2f
+            val top = cy - h / 2f
+            val right = cx - w / 2f
+            val bottom = cy + h /  2f
+
+            // extract class scores
+            var maxClassScore = 0f
             var detectedClassIndex = -1
-
             for (c in 0 until numClasses) {
-                val classScore = outputArray.get(offset + boxCoordsSize + c)
-
+                val classScore = outputArray.get(currentBoxOffset + boxCoordsSize + c)
                 if (classScore > maxClassScore) {
                     maxClassScore = classScore
                     detectedClassIndex = c
@@ -148,23 +169,88 @@ class BillDetector(
 
             if (maxClassScore >= confidenceThreshold && detectedClassIndex != -1) {
                 val className = labels.getOrElse(detectedClassIndex) {
-                    "Unknown_$detectedClassIndex"
+                    "Unknown (index $detectedClassIndex)"
                 }
-                // TODO: Extract bounding box later:
-                // val cx = outputArray.get(offset + 0)
-                // val cy = outputArray.get(offset + 1)
-                // val w = outputArray.get(offset + 2)
-                // val h = outputArray.get(offset + 3)
-                // Convert cx,cy,w,h to RectF(left, top, right, bottom) - remember scaling!
 
-                // Use maxClassScore as the confidence for this detection
-                results.add(BillInference(name = className, confidence = maxClassScore))
+                val scaleX = bitmap.width.toFloat() / inputWidth
+                val scaleY = bitmap.height.toFloat() / inputHeight
+
+                val scaleBox = RectF(
+                    left * scaleX,
+                    top * scaleY,
+                    right * scaleX,
+                    bottom * scaleY
+                )
+
+                preNMSDetections.add(
+                    BillInference(
+                        name = className,
+                        confidence = maxClassScore,
+                        boundingBox = scaleBox
+                    )
+                )
+            }
+        }
+
+        Log.d("BillDetector", "found ${preNMSDetections.size} detections beforeNMS")
+
+        return applyNMS(preNMSDetections)
+    }
+
+    private fun applyNMS(detections: List<BillInference>): List<BillInference> {
+        if (detections.isEmpty()) return  emptyList()
+
+        val sortedDetections = detections.sortedByDescending { it.confidence }
+
+        val selectedDetections = mutableListOf<BillInference>()
+        val active = BooleanArray(sortedDetections.size) { true }
+        var numActive = active.size
+
+        for (i in sortedDetections.indices) {
+            if (active[i]) {
+                val currentBox = sortedDetections[i]
+                selectedDetections.add(currentBox)
+                active[i] = false
+                numActive--
+
+                if (numActive == 0) break
+
+                for (j in (i + 1) until sortedDetections.size) {
+                    if (active[j]) {
+                        val otherBox = sortedDetections[i]
+                        val iou = calculateIoU(currentBox.boundingBox, otherBox.boundingBox)
+
+                        if (iou >= iouThreshold) {
+                            active[j] = false
+                            numActive--
+                        }
+                    }
+                }
+
+                if (numActive == 0) break
             }
 
-        }
-        // TODO: Apply Non-Max Suppression (NMS) here!
 
-        return results.distinctBy { it.name }
+        }
+        return selectedDetections
+    }
+
+    private fun calculateIoU(box1: RectF, box2: RectF): Float {
+        val xA = max(box1.left, box2.left)
+        val yA = max(box1.top, box2.top)
+        val xB = min(box1.right, box2.right)
+        val yB = min(box1.bottom, box2.bottom)
+
+        // Calculate intersection area
+        val intersectionArea = max(0f, xB - xA) * max(0f, yB - yA)
+
+        // Calculate union area
+        val box1Area = (box1.right - box1.left) * (box1.bottom - box1.top)
+        val box2Area = (box2.right - box2.left) * (box2.bottom - box2.top)
+        val unionArea = box1Area + box2Area - intersectionArea
+
+        // Compute IoU
+        return if (unionArea > 0) intersectionArea / unionArea else 0f
     }
 
     fun close() {
