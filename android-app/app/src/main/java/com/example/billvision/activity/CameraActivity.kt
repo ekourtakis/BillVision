@@ -81,34 +81,49 @@ fun CameraPreview(
     val context = LocalContext.current
 
     val detector = remember { BillDetector(context) }
-
-    var classifications by remember {
-        mutableStateOf(emptyList<BillInference>())
-    }
-
-    val analyzer = remember(detector) {
+    val analyzer = remember(detector) { // analyzer depends on detector
         BillImageAnalyzer(
             detector = detector,
             onResults = { detectedBills ->
                 Log.d(
                     "CameraActivity",
                     "onResults called with ${detectedBills.size} detections: " +
-                            "${detectedBills.joinToString { it.name + "("+String.format("%.2f", it.confidence)+")" }}"
+                            detectedBills.joinToString { it.name + "("+String.format("%.2f", it.confidence)+")" }
                 )
+            }
+        )
+    }
 
+    var classifications by remember {
+        mutableStateOf(emptyList<BillInference>())
+    }
+
+    val updatedAnalyzer = remember(detector) {
+        BillImageAnalyzer(
+            detector = detector,
+            onResults = { detectedBills ->
+                Log.d(
+                    "CameraActivity",
+                    "onResults (Updated Lambda) called with ${detectedBills.size} detections: " +
+                            detectedBills.joinToString { it.name + "("+String.format("%.2f", it.confidence)+")" }
+                )
                 classifications = detectedBills
             }
         )
     }
 
+
     DisposableEffect(Unit) {
         onDispose {
+            Log.d("CameraPreview", "DisposableEffect: Closing analyzer and detector.")
+            analyzer.close()
             detector.close()
         }
     }
 
-    LaunchedEffect(lifecycleOwner, analyzer) {
-        viewModel.bindToCamera(context.applicationContext, lifecycleOwner, analyzer)
+    LaunchedEffect(lifecycleOwner, updatedAnalyzer) { // Depend on updatedAnalyzer
+        Log.d("CameraPreview", "LaunchedEffect: Binding camera.")
+        viewModel.bindToCamera(context.applicationContext, lifecycleOwner, updatedAnalyzer) // Use updatedAnalyzer
     }
 
     Box(
@@ -118,38 +133,58 @@ fun CameraPreview(
         surfaceRequest?.let { request ->
             CameraXViewfinder(
                 surfaceRequest = request,
-                modifier = modifier
+                modifier = Modifier.fillMaxSize() // Ensure viewfinder fills the Box
             )
         }
 
-        // New Column for displaying classifications
+        // Column for displaying classifications (Top Center)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
+                .padding(top = 16.dp) // Add some padding from the top edge
         ) {
-            val resultsToShow = classifications.take(3)
+            // Take top 3 results, or fewer if less than 3 are found
+            val resultsToShow = classifications.sortedByDescending { it.confidence }.take(3)
             resultsToShow.forEach {
                 Text(
-                    text = "${it.name} - ${it.confidence * 100}%",
+                    // Format confidence as percentage
+                    text = "${it.name}: ${String.format("%.1f", it.confidence * 100)}%",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha=0.7f))
+                        // Use a semi-transparent background for better readability over the camera feed
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     textAlign = TextAlign.Center,
                     fontSize = 18.sp,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
+            // Optional: Show a placeholder if no bills are detected
+            if (classifications.isEmpty()) {
+                Text(
+                    text = "Point camera at a bill...",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    textAlign = TextAlign.Center,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
+        // Button (Bottom Center)
         Button(
             onClick = {
                 viewModel.takePhoto(context) { photoFile ->
                     onPhotoTaken(photoFile.absolutePath)
                 }
             },
-            modifier = Modifier.padding(64.dp)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 64.dp)
         ) {
             Text("Take Photo")
         }
