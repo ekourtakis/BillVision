@@ -1,11 +1,11 @@
-package com.example.billvision.data
+package com.example.billvision.ml
 
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RectF
 import android.util.Log
-import com.example.billvision.data.model.BillInference
+import com.example.billvision.model.BillInference
 import okio.IOException
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
@@ -23,7 +23,7 @@ import kotlin.math.min
 class BillDetector(
     private val context: Context,
     private val modelPath: String = "usd_detector.tflite",
-    private val confidenceThreshold: Float = 0.5f,
+    private val confidenceThreshold: Float = 0.9f,
     private val iouThreshold: Float = 0.45f // for no max suppression
 ) {
     private var interpreter: Interpreter? = null
@@ -153,7 +153,7 @@ class BillDetector(
 
             val left = cx - w / 2f
             val top = cy - h / 2f
-            val right = cx - w / 2f
+            val right = cx + w / 2f
             val bottom = cy + h /  2f
 
             // extract class scores
@@ -192,14 +192,26 @@ class BillDetector(
             }
         }
 
-        Log.d("BillDetector", "found ${preNMSDetections.size} detections beforeNMS")
+        Log.d("BillDetector", "found ${preNMSDetections.size} detections before NMS")
 
-        return applyNMS(preNMSDetections)
+        val postNMSDetections = applyNMS(preNMSDetections)
+
+        Log.d("BillDetector", "found ${postNMSDetections.size} detections after NMS")
+
+        return postNMSDetections
     }
 
     private fun applyNMS(detections: List<BillInference>): List<BillInference> {
-        if (detections.isEmpty()) return  emptyList()
+        if (detections.isEmpty()) return emptyList()
 
+        // *** Add Logging Here ***
+        Log.d("BillDetectorNMS", "--- Entering NMS with ${detections.size} detections ---")
+        detections.take(10).forEachIndexed { index, det -> // Log first 10 boxes
+            Log.v("BillDetectorNMS", "Input Box $index: Class=${det.name}, Conf=${String.format("%.2f", det.confidence)}, Box=${det.boundingBox}")
+        }
+        // *** End Logging ***
+
+        // Sort by confidence in descending order
         val sortedDetections = detections.sortedByDescending { it.confidence }
 
         val selectedDetections = mutableListOf<BillInference>()
@@ -226,31 +238,49 @@ class BillDetector(
                         }
                     }
                 }
-
                 if (numActive == 0) break
             }
-
-
         }
+        Log.d("BillDetectorNMS", "--- Exiting NMS with ${selectedDetections.size} detections ---") // Log count after
         return selectedDetections
     }
 
     private fun calculateIoU(box1: RectF, box2: RectF): Float {
+        // *** Add Logging Here ***
+        Log.v("BillDetectorIoU", "Calculating IoU for:")
+        Log.v("BillDetectorIoU", "  Box1: $box1")
+        Log.v("BillDetectorIoU", "  Box2: $box2")
+        // *** End Logging ***
+
         val xA = max(box1.left, box2.left)
         val yA = max(box1.top, box2.top)
         val xB = min(box1.right, box2.right)
         val yB = min(box1.bottom, box2.bottom)
 
         // Calculate intersection area
-        val intersectionArea = max(0f, xB - xA) * max(0f, yB - yA)
+        val intersectionWidth = max(0f, xB - xA)
+        val intersectionHeight = max(0f, yB - yA)
+        val intersectionArea = intersectionWidth * intersectionHeight
 
         // Calculate union area
         val box1Area = (box1.right - box1.left) * (box1.bottom - box1.top)
         val box2Area = (box2.right - box2.left) * (box2.bottom - box2.top)
-        val unionArea = box1Area + box2Area - intersectionArea
+        // Ensure areas are non-negative
+        val validBox1Area = max(0f, box1Area)
+        val validBox2Area = max(0f, box2Area)
+        val unionArea = validBox1Area + validBox2Area - intersectionArea
 
         // Compute IoU
-        return if (unionArea > 0) intersectionArea / unionArea else 0f
+        val iou = if (unionArea > 0f) intersectionArea / unionArea else 0f
+
+        // *** Add Logging Here ***
+        Log.v("BillDetectorIoU", "  Intersection: A=$intersectionArea (W=$intersectionWidth, H=$intersectionHeight)")
+        Log.v("BillDetectorIoU", "  Union: A=$unionArea (Area1=$validBox1Area, Area2=$validBox2Area)")
+        Log.v("BillDetectorIoU", "  Result IoU: $iou")
+        // *** End Logging ***
+
+        // Ensure IoU is between 0 and 1 (sanity check)
+        return max(0f, min(1f, iou))
     }
 
     fun close() {
