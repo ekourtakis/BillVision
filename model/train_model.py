@@ -21,9 +21,9 @@ TFLITE_INT8 = True
 
 # --- Roboflow Config ---
 ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY")
-ROBOFLOW_WORKSPACE = "scratch-enrjz"
-ROBOFLOW_PROJECT = "usd_total-ns6qv"
-ROBOFLOW_VERSION = 2
+ROBOFLOW_WORKSPACE = os.getenv("ROBOFLOW_WORKSPACE")
+ROBOFLOW_PROJECT = os.getenv("ROBOFLOW_PROJECT")
+ROBOFLOW_VERSION = os.getenv("ROBOFLOW_VERSION")
 
 # --- Path Configuration ---
 CUSTOM_YAML_PATH = "billvision_config.yaml"
@@ -32,21 +32,29 @@ PROJECT_OUTPUT_DIR = "runs"
 EXPERIMENT_NAME = "dollar_detector_custom_yaml"
 
 def check_tflite_dependencies():
-    """Checks if TensorFlow and TFLite runtime are likely installed."""
     try:
         import tensorflow
-        print("TensorFlow found (required for TFLite export).")
         return True
     except ImportError:
-        print("WARNING: TensorFlow not found. TFLite export requires TensorFlow.")
-        print("Please install it: pip install tensorflow")
         return False
 
 def main():
-    # --- Check Roboflow API Key ---
+    # --- Check Enviorment Variables ---
     if not ROBOFLOW_API_KEY:
-        print("FATAL ERROR: Roboflow API key not found. Set ROBOFLOW_API_KEY environment variable or in .env file.")
+        print("FATAL ERROR: Roboflow API key not found. Set ROBOFLOW_API_KEY in .env file.")
         sys.exit(1)
+
+    if not ROBOFLOW_WORKSPACE:
+        print("FATAL ERROR: Roboflow workspace not found. Set ROBOFLOW_WORKSPACE in .env file.")
+        sys.exit(1)
+        
+    if not ROBOFLOW_PROJECT:
+        print("FATAL ERROR: Roboflow project not found. Set ROBOFLOW_PROJECT in .env file.")
+        sys.exit(1)
+
+    if not ROBOFLOW_VERSION:
+        print("FATAL ERROR: Roboflow version not found. Set ROBOFLOW_VERSION in .env file.")
+        sys.exit(1)       
 
     # --- Check if Custom YAML exists ---
     if not os.path.exists(CUSTOM_YAML_PATH):
