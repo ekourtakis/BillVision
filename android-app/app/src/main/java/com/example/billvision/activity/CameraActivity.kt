@@ -1,9 +1,9 @@
 package com.example.billvision.activity
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.util.Size
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,26 +15,18 @@ import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
-import androidx.camera.core.ImageCaptureException
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size as GeometrySize
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,77 +35,69 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.billvision.data.BillImageAnalyzer
-import com.example.billvision.data.model.BillInference
-import com.example.billvision.MainActivity
-import com.example.billvision.data.BillDetector
+import com.example.billvision.ml.BillImageAnalyzer
+import com.example.billvision.model.BillInference
+import com.example.billvision.ml.BillDetector
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import java.io.File
+import kotlinx.coroutines.flow.update // Keep
+import kotlin.math.max
+import kotlin.math.min
 
 class CameraActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            var imageSize by remember { mutableStateOf(Size(0, 0)) }
+
             val viewModel = remember { CameraPreviewViewModel() }
-            CameraPreview(viewModel) { photoPath ->
-                val intent = Intent().apply {
-                    putExtra(MainActivity.Companion.EXTRA_PHOTO_PATH, photoPath)
-                }
-                setResult(RESULT_OK, intent)
-                finish()
-            }
+            CameraPreview(
+                viewModel = viewModel,
+                onImageAnalyzed = { size -> // Callback to get image size
+                    if (imageSize != size && size.width > 0 && size.height > 0) {
+                        imageSize = size
+                    }
+                },
+                imageSize = imageSize // Pass size to CameraPreview
+            )
         }
     }
 }
 
+@OptIn(ExperimentalTextApi::class)
 @Composable
 fun CameraPreview(
     viewModel: CameraPreviewViewModel,
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
-    onPhotoTaken: (String) -> Unit
+    imageSize: Size, // Receive analyzed image size
+    onImageAnalyzed: (Size) -> Unit, // Callback to update image size
 ) {
     val surfaceRequest by viewModel.surfaceRequest.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val detector = remember { BillDetector(context) }
-    val analyzer = remember(detector) { // analyzer depends on detector
+    var classifications by remember { mutableStateOf(emptyList<BillInference>()) }
+
+    val analyzer = remember(detector, onImageAnalyzed) {
         BillImageAnalyzer(
             detector = detector,
-            onResults = { detectedBills ->
-                Log.d(
-                    "CameraActivity",
-                    "onResults called with ${detectedBills.size} detections: " +
-                            detectedBills.joinToString { it.name + "("+String.format("%.2f", it.confidence)+")" }
-                )
-            }
-        )
-    }
-
-    var classifications by remember {
-        mutableStateOf(emptyList<BillInference>())
-    }
-
-    val updatedAnalyzer = remember(detector) {
-        BillImageAnalyzer(
-            detector = detector,
-            onResults = { detectedBills ->
-                Log.d(
-                    "CameraActivity",
-                    "onResults (Updated Lambda) called with ${detectedBills.size} detections: " +
-                            detectedBills.joinToString { it.name + "("+String.format("%.2f", it.confidence)+")" }
-                )
+            onResults = { detectedBills, analyzedSize ->
                 classifications = detectedBills
+                if (analyzedSize.width > 0 && analyzedSize.height > 0) {
+                    onImageAnalyzed(analyzedSize) // Update the size in the parent
+                }
+                Log.d(
+                    "CameraActivity",
+                    "onResults called with ${detectedBills.size} detections for image size ${analyzedSize.width}x${analyzedSize.height}"
+                )
             }
         )
     }
 
-
-    DisposableEffect(Unit) {
+    DisposableEffect(analyzer, detector) {
         onDispose {
             Log.d("CameraPreview", "DisposableEffect: Closing analyzer and detector.")
             analyzer.close()
@@ -121,15 +105,17 @@ fun CameraPreview(
         }
     }
 
-    LaunchedEffect(lifecycleOwner, updatedAnalyzer) { // Depend on updatedAnalyzer
+    LaunchedEffect(lifecycleOwner, analyzer) {
         Log.d("CameraPreview", "LaunchedEffect: Binding camera.")
-        viewModel.bindToCamera(context.applicationContext, lifecycleOwner, updatedAnalyzer) // Use updatedAnalyzer
+        viewModel.bindToCamera(context.applicationContext, lifecycleOwner, analyzer)
     }
 
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
+    // For drawing text on Canvas
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+
+    Box(modifier = modifier.fillMaxSize()) { // Box fills the screen
+        // Camera Viewfinder fills the Box
         surfaceRequest?.let { request ->
             CameraXViewfinder(
                 surfaceRequest = request,
@@ -137,71 +123,156 @@ fun CameraPreview(
             )
         }
 
-        // Column for displaying classifications (Top Center)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .padding(top = 16.dp) // Add some padding from the top edge
-        ) {
-            // Take top 3 results, or fewer if less than 3 are found
-            val resultsToShow = classifications.sortedByDescending { it.confidence }.take(3)
-            resultsToShow.forEach {
-                Text(
-                    // Format confidence as percentage
-                    text = "${it.name}: ${String.format("%.1f", it.confidence * 100)}%",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        // Use a semi-transparent background for better readability over the camera feed
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    textAlign = TextAlign.Center,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-            // Optional: Show a placeholder if no bills are detected
-            if (classifications.isEmpty()) {
-                Text(
-                    text = "Point camera at a bill...",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    textAlign = TextAlign.Center,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        // Canvas also fills the Box, drawn on top of the Viewfinder
+        if (imageSize.width > 0 && imageSize.height > 0 && classifications.isNotEmpty()) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val canvasWidth = size.width
+                val canvasHeight = size.height
 
-        // Button (Bottom Center)
-        Button(
-            onClick = {
-                viewModel.takePhoto(context) { photoFile ->
-                    onPhotoTaken(photoFile.absolutePath)
+                val imageAspectRatio = imageSize.width.toFloat() / imageSize.height.toFloat()
+                val canvasAspectRatio = canvasWidth / canvasHeight
+
+                val scaleFactor: Float
+                val offsetX: Float
+                val offsetY: Float
+
+                if (imageAspectRatio > canvasAspectRatio) {
+                    // Image is wider than canvas (letterboxing top/bottom)
+                    scaleFactor = canvasWidth / imageSize.width.toFloat()
+                    offsetX = 0f
+                    offsetY = (canvasHeight - imageSize.height * scaleFactor) / 2f
+                } else {
+                    // Image is taller than canvas (pillar boxing left/right)
+                    scaleFactor = canvasHeight / imageSize.height.toFloat()
+                    offsetX = (canvasWidth - imageSize.width * scaleFactor) / 2f
+                    offsetY = 0f
                 }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 64.dp)
-        ) {
-            Text("Take Photo")
+
+                // Draw each bounding box and label
+                classifications.forEach { inference ->
+                    val box = inference.boundingBox // Coordinates are relative to original bitmap
+
+                    // Scale and offset the coordinates
+                    val canvasLeft = box.left * scaleFactor + offsetX
+                    val canvasTop = box.top * scaleFactor + offsetY
+                    val canvasRight = box.right * scaleFactor + offsetX
+                    val canvasBottom = box.bottom * scaleFactor + offsetY
+
+                    // Ensure coordinates are within canvas bounds (optional, prevents drawing outside)
+                    if (canvasRight <= canvasLeft || canvasBottom <= canvasTop ||
+                        canvasLeft >= canvasWidth || canvasTop >= canvasHeight ||
+                        canvasRight <= 0 || canvasBottom <= 0) {
+                        return@forEach // Skip drawing if box is invalid or fully outside
+                    }
+
+                    // Clamp coordinates to be within the visible canvas area
+                    val clampedLeft = max(0f, canvasLeft)
+                    val clampedTop = max(0f, canvasTop)
+                    val clampedRight = min(canvasWidth, canvasRight)
+                    val clampedBottom = min(canvasHeight, canvasBottom)
+
+                    val boxWidth = clampedRight - clampedLeft
+                    val boxHeight = clampedBottom - clampedTop
+
+                    if (boxWidth <= 0 || boxHeight <= 0) return@forEach // Skip if degenerated after clamping
+
+                    // Draw the bounding box outline
+                    drawRect(
+                        color = Color.Yellow, // Or assign colors based on class
+                        topLeft = Offset(clampedLeft, clampedTop),
+                        size = GeometrySize(boxWidth, boxHeight),
+                        style = Stroke(width = 2.dp.toPx()) // Use dp for consistent stroke width
+                    )
+
+                    // Prepare text label
+                    val label = "${inference.name} ${String.format("%.1f", inference.confidence * 100)}%"
+                    val textStyle = TextStyle(
+                        color = Color.White,
+                        fontSize = 14.sp // Use sp for text size
+                    )
+                    val measuredText = textMeasurer.measure(
+                        text = AnnotatedString(label),
+                        style = textStyle
+                    )
+                    val textHeight = measuredText.size.height
+                    val textWidth = measuredText.size.width
+
+                    // Calculate position for text (above the box)
+                    var textX = clampedLeft
+                    var textY = clampedTop - textHeight - 4.dp.toPx() // Position above box with padding
+
+                    // Adjust text position if it goes off-screen
+                    if (textY < 0) {
+                        textY = clampedBottom + 4.dp.toPx() // Move below box if no space above
+                    }
+                    if (textX + textWidth > canvasWidth) {
+                        textX = canvasWidth - textWidth // Adjust left if it goes off right edge
+                    }
+                    if (textX < 0) {
+                        textX = 0f // Ensure text doesn't go off left edge
+                    }
+
+
+                    // Draw text background for better readability
+                    drawRect(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        topLeft = Offset(textX - 2.dp.toPx(), textY - 2.dp.toPx()),
+                        size = GeometrySize(textWidth + 4.dp.toPx(), textHeight + 4.dp.toPx())
+                    )
+
+                    // Draw the text label
+                    drawText(
+                        textLayoutResult = measuredText,
+                        topLeft = Offset(textX, textY)
+                    )
+                }
+            }
+        } else if (classifications.isEmpty()) { // Keep the placeholder text when nothing is detected
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val text = "Point camera at a bill..."
+                val textStyle = TextStyle(
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+                val measuredText = textMeasurer.measure(
+                    text = AnnotatedString(text),
+                    style = textStyle,
+                    constraints = androidx.compose.ui.unit.Constraints(maxWidth = size.width.toInt())
+                )
+                val textWidth = measuredText.size.width
+                val textHeight = measuredText.size.height
+                drawRect(
+                    color = Color.Black.copy(alpha = 0.5f),
+                    topLeft = Offset(size.width / 2 - textWidth / 2 - 4.dp.toPx(), size.height / 2 - textHeight/2 - 4.dp.toPx()),
+                    size = GeometrySize(textWidth + 8.dp.toPx(), textHeight + 8.dp.toPx())
+                )
+                drawText(
+                    textLayoutResult = measuredText,
+                    topLeft = Offset(size.width / 2 - textWidth / 2, size.height / 2 - textHeight / 2)
+                )
+            }
         }
     }
 }
 
+
+// --- CameraPreviewViewModel (Keep as is) ---
 class CameraPreviewViewModel : ViewModel() {
-    // used to set up a link between the Camera and your UI.
     private val _surfaceRequest = MutableStateFlow<SurfaceRequest?>(null)
     val surfaceRequest: StateFlow<SurfaceRequest?> = _surfaceRequest
 
     private val imageCapture = ImageCapture.Builder().build()
 
-    private val imageAnalyzerUseCase = ImageAnalysis.Builder().build()
+    // Configure ImageAnalysis resolution if needed (see previous accuracy answer)
+    private val imageAnalyzerUseCase = ImageAnalysis.Builder()
+        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+        .build()
+
 
     private val cameraPreviewUseCase = Preview.Builder().build().apply {
         setSurfaceProvider { newSurfaceRequest ->
+            // Debounce or check if request is actually new if needed
             _surfaceRequest.update { newSurfaceRequest }
         }
     }
@@ -209,53 +280,39 @@ class CameraPreviewViewModel : ViewModel() {
     suspend fun bindToCamera(
         appContext: Context,
         lifecycleOwner: LifecycleOwner,
-        analyzer: BillImageAnalyzer
+        analyzer: BillImageAnalyzer // Receive the analyzer instance
     ) {
         val processCameraProvider = ProcessCameraProvider.awaitInstance(appContext)
 
+        // Set the analyzer on the use case
         imageAnalyzerUseCase.setAnalyzer(
-            ContextCompat.getMainExecutor(appContext),
+            ContextCompat.getMainExecutor(appContext), // Use main executor for analyzer if it posts back to UI thread quickly
+            // OR provide a dedicated background executor if analysis is very heavy
+            // Executors.newSingleThreadExecutor(),
             analyzer
         )
 
         try {
-            processCameraProvider.unbindAll() // clean slate
+            processCameraProvider.unbindAll()
 
             processCameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 DEFAULT_BACK_CAMERA,
                 cameraPreviewUseCase,
                 imageCapture,
-                imageAnalyzerUseCase
+                imageAnalyzerUseCase // Bind the analyzer use case
             )
+            Log.d("CameraViewModel", "Camera use cases bound successfully.")
+
         } catch (e: Exception) {
-            Log.e("CameraViewModel", "use case binding failed: ${e.message}", e)
+            Log.e("CameraViewModel", "Use case binding failed: ${e.message}", e)
         }
 
-        // Cancellation signals we're done with the camera
-        try { awaitCancellation() } finally { processCameraProvider.unbindAll() }
-    }
-
-    fun takePhoto(context: Context, onPhotoTaken: (File) -> Unit) {
-        val photoFile = File(
-            context.getExternalFilesDir(null),
-            "BillVision_${System.currentTimeMillis()}.jpg"
-        )
-
-        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-
-        imageCapture.takePicture(
-            outputOptions,
-            context.mainExecutor,
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    onPhotoTaken(photoFile)
-                }
-
-                override fun onError(exception: ImageCaptureException) {
-                    // Handle error here
-                }
-            }
-        )
+        // Keep listening for cancellation to unbind
+        try { awaitCancellation() }
+        finally {
+            Log.d("CameraViewModel", "awaitCancellation ended, unbinding camera use cases.")
+            processCameraProvider.unbindAll()
+        }
     }
 }
