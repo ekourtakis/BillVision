@@ -36,8 +36,8 @@ class BillDetector(
     private val boxCoordsSize = 4
 
     private val labels = listOf(
-        "1_dollar", "50_dollar", "10_dollar", "2_dollar",
-        "20_dollar", "5_dollar", "100_dollar"
+        "1 dollar", "50 dollar", "10 dollar", "2 dollar",
+        "20 dollar", "5 dollar", "100 dollar"
     )
 
     init {
