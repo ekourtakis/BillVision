@@ -32,4 +32,4 @@ To generate a new version of the model:
    ```sh
    python train_model.py
    ```
-   The script saves the newly trained model to the Android app, and can be tested in it immediately on completion. Run `deactivate` to exit the venv.
+   The script trains a new model and, if successful, exports it as a TFLite file. The exported model is saved to the Android app's assets directory, making it ready for immediate testing. Run `deactivate` to exit the virtual environment.
