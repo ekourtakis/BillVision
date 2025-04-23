@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import android.util.Size
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -72,8 +74,8 @@ fun CameraPreview(
     viewModel: CameraPreviewViewModel,
     modifier: Modifier = Modifier,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
-    imageSize: Size, // Receive analyzed image size
-    onImageAnalyzed: (Size) -> Unit, // Callback to update image size
+    imageSize: Size, // receive analyzed image size
+    onImageAnalyzed: (Size) -> Unit, // callback to update image size
 ) {
     val surfaceRequest by viewModel.surfaceRequest.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -87,7 +89,7 @@ fun CameraPreview(
             onResults = { detectedBills, analyzedSize ->
                 classifications = detectedBills
                 if (analyzedSize.width > 0 && analyzedSize.height > 0) {
-                    onImageAnalyzed(analyzedSize) // Update the size in the parent
+                    onImageAnalyzed(analyzedSize) // update the size
                 }
                 Log.d(
                     "CameraActivity",
@@ -95,6 +97,35 @@ fun CameraPreview(
                 )
             }
         )
+    }
+
+    // -- accessibility ---
+    val accessibilityManager = context.getSystemService(
+        Context.ACCESSIBILITY_SERVICE
+    ) as AccessibilityManager
+
+    var lastAnnouncement by remember { mutableStateOf("") }
+
+    LaunchedEffect(classifications, accessibilityManager.isEnabled) {
+        if (!accessibilityManager.isEnabled) {
+            return@LaunchedEffect // don't announce if TalkBack is off
+        }
+
+        val newAnnouncement = createAnnouncementString(classifications)
+
+        if (newAnnouncement == lastAnnouncement) {
+            return@LaunchedEffect // don't announce if nothing has changed
+        }
+
+        accessibilityManager.sendAccessibilityEvent(
+            AccessibilityEvent.obtain().apply {
+                eventType = AccessibilityEvent.TYPE_ANNOUNCEMENT
+                packageName = context.packageName
+                className = javaClass.name
+                text.add(newAnnouncement)
+            }
+        )
+        lastAnnouncement = newAnnouncement
     }
 
     DisposableEffect(analyzer, detector) {
@@ -110,20 +141,19 @@ fun CameraPreview(
         viewModel.bindToCamera(context.applicationContext, lifecycleOwner, analyzer)
     }
 
-    // For drawing text on Canvas
+    // for drawing text on Canvas
     val textMeasurer = rememberTextMeasurer()
-    val density = LocalDensity.current
 
-    Box(modifier = modifier.fillMaxSize()) { // Box fills the screen
+    Box(modifier = modifier.fillMaxSize()) {
         // Camera Viewfinder fills the Box
         surfaceRequest?.let { request ->
             CameraXViewfinder(
                 surfaceRequest = request,
-                modifier = Modifier.fillMaxSize() // Ensure viewfinder fills the Box
+                modifier = Modifier.fillMaxSize()
             )
         }
 
-        // Canvas also fills the Box, drawn on top of the Viewfinder
+        // Canvas fills the Box, drawn on top of the Viewfinder
         if (imageSize.width > 0 && imageSize.height > 0 && classifications.isNotEmpty()) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val canvasWidth = size.width
@@ -227,7 +257,7 @@ fun CameraPreview(
                     )
                 }
             }
-        } else if (classifications.isEmpty()) { // Keep the placeholder text when nothing is detected
+        } else if (classifications.isEmpty()) { // placeholder text when nothing is detected
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val text = "Point camera at a bill..."
                 val textStyle = TextStyle(
@@ -256,8 +286,18 @@ fun CameraPreview(
     }
 }
 
+private fun createAnnouncementString(classifications: List<BillInference>): String {
+    return when {
+        classifications.isEmpty() -> "Point camera at a bill..."
+        classifications.size == 1 -> "Detected ${classifications.size} bill: ${classifications[0].name}"
+        else -> {
+            val billNames = classifications.map { it.name }
 
-// --- CameraPreviewViewModel (Keep as is) ---
+            return "Detected ${classifications.size} bills: $billNames"
+        }
+    }
+}
+
 class CameraPreviewViewModel : ViewModel() {
     private val _surfaceRequest = MutableStateFlow<SurfaceRequest?>(null)
     val surfaceRequest: StateFlow<SurfaceRequest?> = _surfaceRequest
