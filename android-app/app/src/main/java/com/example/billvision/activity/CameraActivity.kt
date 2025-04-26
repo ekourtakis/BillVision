@@ -32,6 +32,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.view.accessibility.AccessibilityManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -99,14 +102,21 @@ fun CameraPreview(
     }
 
     // -- accessibility ---
-    val accessibilityManager = context.getSystemService(
-        Context.ACCESSIBILITY_SERVICE
-    ) as AccessibilityManager
+    val accessibilityManager = remember {
+        context.getSystemService(
+            Context.ACCESSIBILITY_SERVICE
+        ) as AccessibilityManager
+    }
+
+    val isAccessibilityEnabled by rememberAccessibilityManagerEnabled()
 
     var lastAnnouncement by remember { mutableStateOf("") }
+    var lastAnnouncementTime by remember { mutableLongStateOf(0L) }
+
+    val minDelayMillis = 5000L // 5 sec delay
 
     LaunchedEffect(classifications, accessibilityManager.isEnabled) {
-        if (!accessibilityManager.isEnabled) {
+        if (!isAccessibilityEnabled) {
             return@LaunchedEffect // don't announce if TalkBack is off
         }
 
@@ -116,6 +126,12 @@ fun CameraPreview(
             return@LaunchedEffect // don't announce if nothing has changed
         }
 
+        val timeSinceLastAnnouncement = System.currentTimeMillis() - lastAnnouncementTime
+        if (timeSinceLastAnnouncement < minDelayMillis) {
+            return@LaunchedEffect // don't announce if too soon after the last one
+        }
+
+        // conditions met, announce
         accessibilityManager.sendAccessibilityEvent(
             AccessibilityEvent.obtain().apply {
                 eventType = AccessibilityEvent.TYPE_ANNOUNCEMENT
@@ -124,7 +140,10 @@ fun CameraPreview(
                 text.add(newAnnouncement)
             }
         )
+
+        // updates
         lastAnnouncement = newAnnouncement
+        lastAnnouncementTime = System.currentTimeMillis()
     }
 
     DisposableEffect(analyzer, detector) {
@@ -301,6 +320,42 @@ private fun createAnnouncementString(classifications: List<BillInference>): Stri
             return "Detected ${classifications.size} bills: $billNames"
         }
     }
+}
+
+@Composable
+fun rememberAccessibilityManagerEnabled(): State<Boolean> {
+    val context = LocalContext.current
+    val applicationContext = context.applicationContext
+    val accessibilityManager = remember {
+        applicationContext.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val isEnabledState = remember { mutableStateOf(accessibilityManager.isEnabled) }
+
+    val listener = remember {
+        AccessibilityManagerCompat.AccessibilityStateChangeListener { enabled ->
+            isEnabledState.value = enabled
+        }
+    }
+
+    DisposableEffect(accessibilityManager, lifecycleOwner, listener) {
+        AccessibilityManagerCompat.addAccessibilityStateChangeListener(accessibilityManager, listener)
+
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isEnabledState.value = accessibilityManager.isEnabled
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+
+        onDispose {
+            AccessibilityManagerCompat.removeAccessibilityStateChangeListener(accessibilityManager, listener)
+            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
+        }
+    }
+
+    return isEnabledState
 }
 
 class CameraPreviewViewModel : ViewModel() {
