@@ -13,6 +13,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * UI tests for [MainActivity].
+ * ANDROID DEVICE'S SCREEN MUST BE ON FOR THESE TESTS TO PASS!
+ */
 @OptIn(ExperimentalPermissionsApi::class)
 @RunWith(AndroidJUnit4::class)
 class MainActivityUITest {
