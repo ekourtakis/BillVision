@@ -5,10 +5,12 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionState
 import com.google.accompanist.permissions.PermissionStatus
+import junit.framework.TestCase.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +36,22 @@ class MainActivityUITest {
             .onNodeWithContentDescription("Open the camera to identify bills")
             .assertIsDisplayed()
     }
+
+    @Test
+    fun clickingOpenCameraButton_callsLaunchCamera() {
+        var wasClicked = false
+
+        composeTestRule.setContent {
+            MainScreen(onCameraButtonClicked = { wasClicked = true })
+        }
+
+        composeTestRule
+            .onNodeWithContentDescription("Open the camera to identify bills")
+            .performClick()
+
+        assertTrue(wasClicked)
+    }
+
 
     @Test
     fun whenCameraPermissionNotGranted_permissionScreenIsDisplayed() {
