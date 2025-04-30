@@ -1,8 +1,8 @@
 package com.example.billvision
 
 import android.graphics.RectF
-import com.example.billvision.activity.createAnnouncementString
 import com.example.billvision.model.BillInference
+import com.example.billvision.ui.camera.createAnnouncementString
 import org.junit.Test
 import kotlin.test.assertEquals
 
