@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
  */
 @OptIn(ExperimentalPermissionsApi::class)
 @RunWith(AndroidJUnit4::class)
-class ComposableTests {
+class ComposableTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
