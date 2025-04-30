@@ -306,7 +306,7 @@ fun CameraPreview(
     }
 }
 
-private fun createAnnouncementString(classifications: List<BillInference>): String {
+internal fun createAnnouncementString(classifications: List<BillInference>): String {
     return when {
         classifications.isEmpty() -> "Point camera at a bill..."
         classifications.size == 1 -> "Detected ${classifications.size} bill: ${classifications[0].name}"
