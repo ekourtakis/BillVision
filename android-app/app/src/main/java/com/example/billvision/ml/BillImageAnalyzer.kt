@@ -2,11 +2,11 @@ package com.example.billvision.ml
 
 import android.graphics.Bitmap
 import android.util.Log
-import android.util.Size
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.example.billvision.model.BillInference
+import com.example.billvision.model.ImageDimensions
 import com.example.billvision.util.toBitmap
 import kotlinx.coroutines.*
 import java.io.Closeable
@@ -15,14 +15,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class BillImageAnalyzer(
     private val detector: BillDetector,
-    private val onResults: (List<BillInference>, Size) -> Unit
+    private val onResults: (List<BillInference>, ImageDimensions) -> Unit
 ) : ImageAnalysis.Analyzer, Closeable {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var frameSkipCounter = 0
     private val skipFrames = 5
     private var currentDetectionJob: Job? = null
-    private var lastImageSize = Size(0, 0) // Cache last known size
+    private var lastImageDimensions = ImageDimensions(0, 0) // Cache last known size
 
     private val isClosed = AtomicBoolean(false)
     private val detectorLock = Any()
@@ -42,7 +42,7 @@ class BillImageAnalyzer(
         frameSkipCounter = 0
 
         val imageTimeStamp = imageProxy.imageInfo.timestamp
-        val originalImageSize = Size(imageProxy.width, imageProxy.height)
+        val currentImageDimensions = ImageDimensions(imageProxy.width, imageProxy.height)
 
         currentDetectionJob = scope.launch {
             if (isClosed.get() || !isActive) {
@@ -62,7 +62,7 @@ class BillImageAnalyzer(
                 var results: List<BillInference>? = null
 
                 // bitmap is valid before proceeding
-                if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) {
+                if (bitmap == null || !ImageDimensions(bitmap.width, bitmap.height).isValid) {
                     Log.w("BillImageAnalyzer", "Bitmap conversion resulted in null or invalid bitmap.")
                     return@launch
                 }
@@ -95,11 +95,14 @@ class BillImageAnalyzer(
                     return@launch
                 }
 
+                val bitmapDimensions = ImageDimensions(bitmap.width, bitmap.height)
+
                 if (results != null && isActive) {
                     Log.d("BillImageAnalyzer", "Timestamp $imageTimeStamp: Detection returned ${results.size} results.")
                     withContext(Dispatchers.Main) {
                         if (!isClosed.get()) {
-                            onResults(results, originalImageSize)
+                            onResults(results, bitmapDimensions)
+                            lastImageDimensions = bitmapDimensions
                         }
                     }
                 }
@@ -111,7 +114,7 @@ class BillImageAnalyzer(
                 }
                 Log.e("BillImageAnalyzer", "Error during detection: ${e.message}", e)
                 // post empty results
-                 withContext(Dispatchers.Main) { onResults(emptyList(), lastImageSize) }
+                 withContext(Dispatchers.Main) { onResults(emptyList(), lastImageDimensions) }
             } finally {
                  bitmap?.recycle()
                 try {

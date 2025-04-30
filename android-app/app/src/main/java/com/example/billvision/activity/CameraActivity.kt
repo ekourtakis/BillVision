@@ -3,7 +3,6 @@ package com.example.billvision.activity
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import android.util.Size
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
@@ -43,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.billvision.ml.BillImageAnalyzer
 import com.example.billvision.model.BillInference
 import com.example.billvision.ml.BillDetector
+import com.example.billvision.model.ImageDimensions
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,7 +61,7 @@ class CameraActivity : ComponentActivity() {
 
             val classifications by viewModel.classifications
                 .collectAsStateWithLifecycle()
-            val imageSize by viewModel.imageSize
+            val imageDimensions by viewModel.imageDimensions
                 .collectAsStateWithLifecycle()
 
             val currentContext = LocalContext.current
@@ -85,7 +85,7 @@ class CameraActivity : ComponentActivity() {
             CameraPreview(
                 viewModel = viewModel,
                 classifications = classifications,
-                imageSize = imageSize,
+                imageDimensions = imageDimensions,
                 analyzer = analyzer
             )
         }
@@ -98,7 +98,7 @@ fun CameraPreview(
     modifier: Modifier = Modifier,
     viewModel: CameraPreviewViewModel,
     classifications: List<BillInference>,
-    imageSize: Size,
+    imageDimensions: ImageDimensions,
     analyzer: BillImageAnalyzer,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
 ) {
@@ -196,12 +196,12 @@ fun CameraPreview(
         }
 
         // Canvas fills the Box, drawn on top of the Viewfinder
-        if (imageSize.width > 0 && imageSize.height > 0 && classifications.isNotEmpty()) {
+        if (imageDimensions.isValid && classifications.isNotEmpty()) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val canvasWidth = size.width
                 val canvasHeight = size.height
 
-                val imageAspectRatio = imageSize.width.toFloat() / imageSize.height.toFloat()
+                val imageAspectRatio = imageDimensions.width.toFloat() / imageDimensions.height.toFloat()
                 val canvasAspectRatio = canvasWidth / canvasHeight
 
                 val scaleFactor: Float
@@ -210,13 +210,13 @@ fun CameraPreview(
 
                 if (imageAspectRatio > canvasAspectRatio) {
                     // image is wider than canvas (letterboxing top/bottom)
-                    scaleFactor = canvasWidth / imageSize.width.toFloat()
+                    scaleFactor = canvasWidth / imageDimensions.width.toFloat()
                     offsetX = 0f
-                    offsetY = (canvasHeight - imageSize.height * scaleFactor) / 2f
+                    offsetY = (canvasHeight - imageDimensions.height * scaleFactor) / 2f
                 } else {
                     // image is taller than canvas (pillar boxing left/right)
-                    scaleFactor = canvasHeight / imageSize.height.toFloat()
-                    offsetX = (canvasWidth - imageSize.width * scaleFactor) / 2f
+                    scaleFactor = canvasHeight / imageDimensions.height.toFloat()
+                    offsetX = (canvasWidth - imageDimensions.width * scaleFactor) / 2f
                     offsetY = 0f
                 }
 
@@ -361,27 +361,32 @@ class CameraPreviewViewModel : ViewModel() {
     private val _classifications = MutableStateFlow<List<BillInference>>(emptyList())
     val classifications: StateFlow<List<BillInference>> = _classifications
 
-    private val _imageSize = MutableStateFlow(Size(0, 0))
-    val imageSize: StateFlow<Size> = _imageSize
+    private val _imageSize = MutableStateFlow(ImageDimensions.ZERO)
+    val imageDimensions: StateFlow<ImageDimensions> = _imageSize
 
-    private val imageCapture = ImageCapture.Builder().build()
+    private val imageCapture: ImageCapture by lazy {
+        ImageCapture.Builder().build()
+    }
 
-    private val imageAnalyzerUseCase = ImageAnalysis.Builder()
-        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-        .build()
+    private val imageAnalyzerUseCase: ImageAnalysis by lazy {
+        ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+    }
 
-
-    private val cameraPreviewUseCase = Preview.Builder().build().apply {
-        setSurfaceProvider { newSurfaceRequest ->
-            _surfaceRequest.update { newSurfaceRequest }
+    private val cameraPreviewUseCase: Preview by lazy {
+        Preview.Builder().build().apply {
+            setSurfaceProvider { newSurfaceRequest ->
+                _surfaceRequest.update { newSurfaceRequest }
+            }
         }
     }
 
-    fun onAnalysisResult(results: List<BillInference>, imageSize: Size) {
+    fun onAnalysisResult(results: List<BillInference>, imageDimensions: ImageDimensions) {
         _classifications.value = results
 
-        if (imageSize.width > 0 && imageSize.height > 0) {
-            _imageSize.value = imageSize
+        if (imageDimensions.width > 0 && imageDimensions.height > 0) {
+            _imageSize.value = imageDimensions
         }
     }
 
