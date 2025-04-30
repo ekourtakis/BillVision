@@ -358,8 +358,8 @@ class CameraPreviewViewModel : ViewModel() {
     private val _surfaceRequest = MutableStateFlow<SurfaceRequest?>(null)
     val surfaceRequest: StateFlow<SurfaceRequest?> = _surfaceRequest
 
-    private val _classicications = MutableStateFlow<List<BillInference>>(emptyList())
-    val classifications: StateFlow<List<BillInference>> = _classicications
+    private val _classifications = MutableStateFlow<List<BillInference>>(emptyList())
+    val classifications: StateFlow<List<BillInference>> = _classifications
 
     private val _imageSize = MutableStateFlow(Size(0, 0))
     val imageSize: StateFlow<Size> = _imageSize
@@ -378,7 +378,7 @@ class CameraPreviewViewModel : ViewModel() {
     }
 
     fun onAnalysisResult(results: List<BillInference>, imageSize: Size) {
-        _classicications.value = results
+        _classifications.value = results
 
         if (imageSize.width > 0 && imageSize.height > 0) {
             _imageSize.value = imageSize
