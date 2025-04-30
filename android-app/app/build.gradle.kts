@@ -38,6 +38,11 @@ android {
         compose = true
         mlModelBinding = false
     }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -52,7 +57,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7") // Looks correct
 
     // CameraX + Accompanist Permissions
     implementation(libs.androidx.camera.core)
@@ -60,7 +65,6 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.accompanist.permissions)
-    // implementation(libs.androidx.camera.view) // Optional: Keep only if needed
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
@@ -72,18 +76,27 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
-    // Unit Testing
+    // --- Unit Testing ---
     testImplementation(libs.junit)
+    testImplementation(kotlin("test")) // Keep kotlin.test
+    // Additions for Unit Tests:
+    testImplementation(libs.kotlinx.coroutines.test) // For testing coroutines/flows
+    testImplementation(libs.androidx.arch.core.testing) // For InstantTaskExecutorRule
+    testImplementation(libs.mockito.kotlin)         // For mocking
+    testImplementation(libs.mockito.inline)          // For mocking final classes
+    testImplementation(libs.turbine)                 // For testing Flows (e.g., app.cash.turbine)
+     testImplementation(libs.robolectric)          // Optional: Uncomment if needing Android framework in unit tests
 
-    // Instrumentation Testing
+
+    // --- Instrumentation Testing ---
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom)) // Test BOM
     androidTestImplementation(libs.androidx.ui.test.junit4)     // Compose UI Tests
     androidTestImplementation(libs.androidx.test.rules)         // Test Rules (like GrantPermissionRule)
+    // androidTestImplementation(libs.kotlinx.coroutines.test) // Optional: If needed in instrumentation tests too
 
     // Debugging Tools
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    testImplementation(kotlin("test"))
 }
