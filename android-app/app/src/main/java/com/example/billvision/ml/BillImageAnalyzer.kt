@@ -16,6 +16,7 @@ import kotlinx.coroutines.*
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import kotlin.coroutines.cancellation.CancellationException
+import java.util.concurrent.atomic.AtomicBoolean
 
 class BillImageAnalyzer(
     private val detector: BillDetector,
@@ -28,11 +29,14 @@ class BillImageAnalyzer(
     private var currentDetectionJob: Job? = null
     private var lastImageSize = Size(0, 0) // Cache last known size
 
+    private val isClosed = AtomicBoolean(false)
+    private val detectorLock = Any()
+
     @ExperimentalGetImage
     override fun analyze(imageProxy: ImageProxy) {
-        val imageSize = Size(imageProxy.width, imageProxy.height)
-        if (imageSize != lastImageSize && imageSize.width > 0 && imageSize.height > 0) {
-            lastImageSize = imageSize
+        if (isClosed.get()) {
+            imageProxy.close()
+            return
         }
 
         if (frameSkipCounter < skipFrames) {
@@ -42,36 +46,67 @@ class BillImageAnalyzer(
         }
         frameSkipCounter = 0
 
-        currentDetectionJob?.cancel() // Cancel previous job
+        val imageTimeStamp = imageProxy.imageInfo.timestamp
+        val originalImageSize = Size(imageProxy.width, imageProxy.height)
 
         currentDetectionJob = scope.launch {
-            var bitmap: Bitmap? = null // Declare bitmap outside try
+            if (isClosed.get() || !isActive) {
+                imageProxy.close()
+                return@launch
+            }
+
+            var bitmap: Bitmap? = null
             try {
                 val image = imageProxy.image ?: run {
                     Log.w("BillImageAnalyzer", "ImageProxy.image was null.")
+                    imageProxy.close()
                     return@launch
                 }
-                bitmap = image.toBitmap() // Convert (can throw exception)
 
-                // Ensure bitmap is valid before proceeding
+                bitmap = image.toBitmap()
+                var results: List<BillInference>? = null
+
+                // bitmap is valid before proceeding
                 if (bitmap == null || bitmap.width <= 0 || bitmap.height <= 0) {
                     Log.w("BillImageAnalyzer", "Bitmap conversion resulted in null or invalid bitmap.")
                     return@launch
                 }
 
-                val bitmapSize = Size(bitmap.width, bitmap.height) // Size of the actual bitmap passed to detector
-                Log.d("BillImageAnalyzer", "Bitmap size: ${bitmap.width}x${bitmap.height}. Calling detector...")
+                if (isClosed.get() || !isActive) {
+                    bitmap.recycle()
+                    return@launch
+                }
 
-                val results = detector.detect(bitmap) // Perform detection
-                Log.d("BillImageAnalyzer", "Detection returned ${results.size} results.")
+                // --- detection ---
+                Log.v("BillImageAnalyzer", "Timestamp $imageTimeStamp: Acquiring lock for detection...")
+                synchronized(detectorLock) { // lock detector
+                    if (!isClosed.get()) {
+                        Log.d("BillImageAnalyzer", "Timestamp $imageTimeStamp: Performing detection...")
+                        results = detector.detect(bitmap)
+                    } else {
+                        Log.w("BillImageAnalyzer", "Timestamp $imageTimeStamp: Analyzer closed while waiting for lock.")
+                    }
+                } // lock released
+                Log.v("BillImageAnalyzer", "Timestamp $imageTimeStamp: Released lock after detection.")
 
                 if (!isActive) {
                     Log.d("BillImageAnalyzer", "Coroutine cancelled before UI update.")
                     return@launch
                 }
 
-                withContext(Dispatchers.Main) {
-                    onResults(results, bitmapSize)
+                // detection didn't run
+                if (results == null && isActive) {
+                    Log.d("BillImageAnalyzer", "Timestamp $imageTimeStamp: Detection skipped because analyzer was closed.")
+                    return@launch
+                }
+
+                if (results != null && isActive) {
+                    Log.d("BillImageAnalyzer", "Timestamp $imageTimeStamp: Detection returned ${results.size} results.")
+                    withContext(Dispatchers.Main) {
+                        if (!isClosed.get()) {
+                            onResults(results, originalImageSize)
+                        }
+                    }
                 }
 
             } catch (e: Exception) {
@@ -80,12 +115,12 @@ class BillImageAnalyzer(
                     throw e
                 }
                 Log.e("BillImageAnalyzer", "Error during detection: ${e.message}", e)
-                // Optionally post empty results on error
-                // withContext(Dispatchers.Main) { onResults(emptyList(), lastImageSize) }
+                // post empty results
+                 withContext(Dispatchers.Main) { onResults(emptyList(), lastImageSize) }
             } finally {
-                // bitmap?.recycle() // Consider recycling if memory pressure is high, but be careful not to recycle if used elsewhere. Usually GC handles it.
+                 bitmap?.recycle()
                 try {
-                    imageProxy.close() // Ensure proxy is always closed
+                    imageProxy.close() // proxy is always closed
                 } catch (ise: IllegalStateException) {
                     Log.w("BillImageAnalyzer", "Failed to close ImageProxy, may already be closed.", ise)
                 }
@@ -94,14 +129,24 @@ class BillImageAnalyzer(
     }
 
     override fun close() {
-        try {
-            detector.close()
+        if (isClosed.compareAndSet(false, true)) {
+            Log.d("BillImageAnalyzer", "Closing analyzer...")
 
-            if (scope.isActive) {
-                scope.cancel()
-            }
-        } catch (e: Exception) {
-            Log.e("BillImageAnalyzer", "Error cancelling scope or closing detector: ${e.message}", e)
+            scope.cancel("Analyzer closing")
+            Log.d("BillImageAnalyzer", "Scope cancelled.")
+
+            Log.d("BillImageAnalyzer", "Acquiring lock to close detector...")
+            synchronized(detectorLock) { // lock detector
+                Log.d("BillImageAnalyzer", "Lock acquired. Closing detector instance...")
+                try {
+                    detector.close()
+                } catch (e: Exception) {
+                    Log.e("BillImageAnalyzer", "Error closing detector: ${e.message}", e)
+                }
+            } // lock released
+            Log.d("BillImageAnalyzer", "Detector closed. Analyzer close complete.")
+        } else {
+            Log.d("BillImageAnalyzer", "Analyzer already closed.")
         }
     }
 
