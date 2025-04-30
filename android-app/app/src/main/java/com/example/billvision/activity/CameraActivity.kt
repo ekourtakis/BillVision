@@ -56,7 +56,3 @@ class CameraActivity : ComponentActivity() {
         }
     }
 }
-
-
-
-
