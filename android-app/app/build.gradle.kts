@@ -85,7 +85,9 @@ dependencies {
     testImplementation(libs.mockito.kotlin)         // For mocking
     testImplementation(libs.mockito.inline)          // For mocking final classes
     testImplementation(libs.turbine)                 // For testing Flows (e.g., app.cash.turbine)
-     testImplementation(libs.robolectric)          // Optional: Uncomment if needing Android framework in unit tests
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.junit)
+    testImplementation(libs.androidx.test.core)
 
 
     // --- Instrumentation Testing ---

@@ -232,12 +232,10 @@ class BillDetector(
         return selectedDetections
     }
 
-    private fun calculateIoU(box1: RectF, box2: RectF): Float {
-        // *** Add Logging Here ***
+    internal fun calculateIoU(box1: RectF, box2: RectF): Float {
         Log.v("BillDetectorIoU", "Calculating IoU for:")
         Log.v("BillDetectorIoU", "  Box1: $box1")
         Log.v("BillDetectorIoU", "  Box2: $box2")
-        // *** End Logging ***
 
         val xA = max(box1.left, box2.left)
         val yA = max(box1.top, box2.top)
