@@ -39,6 +39,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.billvision.ml.BillImageAnalyzer
 import com.example.billvision.model.BillInference
 import com.example.billvision.ml.BillDetector
@@ -50,21 +51,42 @@ import kotlin.math.max
 import kotlin.math.min
 
 class CameraActivity : ComponentActivity() {
+    private lateinit var analyzer: BillImageAnalyzer
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            var imageSize by remember { mutableStateOf(Size(0, 0)) }
+            val viewModel: CameraPreviewViewModel = viewModel()
 
-            val viewModel = remember { CameraPreviewViewModel() }
+            val classifications by viewModel.classifications
+                .collectAsStateWithLifecycle()
+            val imageSize by viewModel.imageSize
+                .collectAsStateWithLifecycle()
+
+            val currentContext = LocalContext.current
+
+            analyzer = remember {
+                val detector = BillDetector(currentContext)
+                BillImageAnalyzer(
+                    detector = detector,
+                    onResults = { results, size ->
+                        viewModel.onAnalysisResult(results, size)
+                    }
+                )
+            }
+
+            DisposableEffect(Unit) {
+                onDispose {
+                    analyzer.close()
+                }
+            }
+
             CameraPreview(
                 viewModel = viewModel,
-                onImageAnalyzed = { size -> // callback to get image size
-                    if (imageSize != size && size.width > 0 && size.height > 0) {
-                        imageSize = size
-                    }
-                },
-                imageSize = imageSize // pass size to CameraPreview
+                classifications = classifications,
+                imageSize = imageSize,
+                analyzer = analyzer
             )
         }
     }
@@ -73,33 +95,15 @@ class CameraActivity : ComponentActivity() {
 @OptIn(ExperimentalTextApi::class)
 @Composable
 fun CameraPreview(
-    viewModel: CameraPreviewViewModel,
     modifier: Modifier = Modifier,
+    viewModel: CameraPreviewViewModel,
+    classifications: List<BillInference>,
+    imageSize: Size,
+    analyzer: BillImageAnalyzer,
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
-    imageSize: Size, // receive analyzed image size
-    onImageAnalyzed: (Size) -> Unit, // callback to update image size
 ) {
     val surfaceRequest by viewModel.surfaceRequest.collectAsStateWithLifecycle()
     val context = LocalContext.current
-
-    val detector = remember { BillDetector(context) }
-    var classifications by remember { mutableStateOf(emptyList<BillInference>()) }
-
-    val analyzer = remember(detector, onImageAnalyzed) {
-        BillImageAnalyzer(
-            detector = detector,
-            onResults = { detectedBills, analyzedSize ->
-                classifications = detectedBills
-                if (analyzedSize.width > 0 && analyzedSize.height > 0) {
-                    onImageAnalyzed(analyzedSize) // update the size
-                }
-                Log.d(
-                    "CameraActivity",
-                    "onResults called with ${detectedBills.size} detections for image size ${analyzedSize.width}x${analyzedSize.height}"
-                )
-            }
-        )
-    }
 
     // -- accessibility ---
     val accessibilityManager = remember {
@@ -115,20 +119,20 @@ fun CameraPreview(
 
     val minDelayMillis = 5000L // 5 sec delay
 
-    LaunchedEffect(classifications, accessibilityManager.isEnabled) {
+    LaunchedEffect(classifications, isAccessibilityEnabled) {
         if (!isAccessibilityEnabled) {
             return@LaunchedEffect // don't announce if TalkBack is off
+        }
+
+        val timeSinceLastAnnouncement = System.currentTimeMillis() - lastAnnouncementTime
+        if (timeSinceLastAnnouncement < minDelayMillis) {
+            return@LaunchedEffect // don't announce if too soon after the last one
         }
 
         val newAnnouncement = createAnnouncementString(classifications)
 
         if (newAnnouncement == lastAnnouncement) {
             return@LaunchedEffect // don't announce if nothing has changed
-        }
-
-        val timeSinceLastAnnouncement = System.currentTimeMillis() - lastAnnouncementTime
-        if (timeSinceLastAnnouncement < minDelayMillis) {
-            return@LaunchedEffect // don't announce if too soon after the last one
         }
 
         // conditions met, announce
@@ -144,14 +148,6 @@ fun CameraPreview(
         // updates
         lastAnnouncement = newAnnouncement
         lastAnnouncementTime = System.currentTimeMillis()
-    }
-
-    DisposableEffect(analyzer, detector) {
-        onDispose {
-            Log.d("CameraPreview", "DisposableEffect: Closing analyzer and detector.")
-            analyzer.close()
-            detector.close()
-        }
     }
 
     LaunchedEffect(lifecycleOwner, analyzer) {
@@ -362,6 +358,12 @@ class CameraPreviewViewModel : ViewModel() {
     private val _surfaceRequest = MutableStateFlow<SurfaceRequest?>(null)
     val surfaceRequest: StateFlow<SurfaceRequest?> = _surfaceRequest
 
+    private val _classicications = MutableStateFlow<List<BillInference>>(emptyList())
+    val classifications: StateFlow<List<BillInference>> = _classicications
+
+    private val _imageSize = MutableStateFlow(Size(0, 0))
+    val imageSize: StateFlow<Size> = _imageSize
+
     private val imageCapture = ImageCapture.Builder().build()
 
     private val imageAnalyzerUseCase = ImageAnalysis.Builder()
@@ -372,6 +374,14 @@ class CameraPreviewViewModel : ViewModel() {
     private val cameraPreviewUseCase = Preview.Builder().build().apply {
         setSurfaceProvider { newSurfaceRequest ->
             _surfaceRequest.update { newSurfaceRequest }
+        }
+    }
+
+    fun onAnalysisResult(results: List<BillInference>, imageSize: Size) {
+        _classicications.value = results
+
+        if (imageSize.width > 0 && imageSize.height > 0) {
+            _imageSize.value = imageSize
         }
     }
 

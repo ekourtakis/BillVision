@@ -19,13 +19,12 @@ import kotlin.coroutines.cancellation.CancellationException
 
 class BillImageAnalyzer(
     private val detector: BillDetector,
-    // Modify callback to include analyzed image size
     private val onResults: (List<BillInference>, Size) -> Unit
 ) : ImageAnalysis.Analyzer, Closeable {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var frameSkipCounter = 0
-    private val skipFrames = 5 // Reduce skip frames a bit for more responsiveness with boxes? Adjust as needed.
+    private val skipFrames = 5
     private var currentDetectionJob: Job? = null
     private var lastImageSize = Size(0, 0) // Cache last known size
 
@@ -34,8 +33,6 @@ class BillImageAnalyzer(
         val imageSize = Size(imageProxy.width, imageProxy.height)
         if (imageSize != lastImageSize && imageSize.width > 0 && imageSize.height > 0) {
             lastImageSize = imageSize
-            // Optionally notify immediately about size change if needed,
-            // but we'll bundle it with results below.
         }
 
         if (frameSkipCounter < skipFrames) {
@@ -73,9 +70,8 @@ class BillImageAnalyzer(
                     return@launch
                 }
 
-                // Post results AND the size of the bitmap that was analyzed
                 withContext(Dispatchers.Main) {
-                    onResults(results, bitmapSize) // Pass bitmapSize used for detection
+                    onResults(results, bitmapSize)
                 }
 
             } catch (e: Exception) {
@@ -99,12 +95,13 @@ class BillImageAnalyzer(
 
     override fun close() {
         try {
+            detector.close()
+
             if (scope.isActive) {
                 scope.cancel()
-                Log.i("BillImageAnalyzer", "Coroutine scope cancelled via close().")
             }
         } catch (e: Exception) {
-            Log.e("BillImageAnalyzer", "Error cancelling scope: ${e.message}", e)
+            Log.e("BillImageAnalyzer", "Error cancelling scope or closing detector: ${e.message}", e)
         }
     }
 
