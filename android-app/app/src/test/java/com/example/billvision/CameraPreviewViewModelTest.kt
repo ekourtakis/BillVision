@@ -15,6 +15,9 @@ import org.junit.Rule
 import org.junit.Test
 import kotlin.test.assertEquals
 
+/**
+ * Unit tests for [CameraPreviewViewModel] logic.
+ */
 @ExperimentalCoroutinesApi
 class CameraPreviewViewModelTest {
 

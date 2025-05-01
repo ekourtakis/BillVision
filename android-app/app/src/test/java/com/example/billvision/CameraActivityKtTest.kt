@@ -7,7 +7,7 @@ import org.junit.Test
 import kotlin.test.assertEquals
 
 /**
- * Unit tests for functions within CameraActivity.kt
+ * Unit tests for functions within [com.example.billvision.activity.CameraActivity]
  */
 class CameraActivityKtTest {
 

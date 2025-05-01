@@ -13,7 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Unit tests for BillDetector logic.
+ * Unit tests for [BillDetector] logic.
  */
 @RunWith(AndroidJUnit4::class)
 class BillDetectorTest {
