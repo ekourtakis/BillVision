@@ -9,7 +9,7 @@ To run the Android app:
 
 ## Model Training
 To generate a new version of the model:
-1. Ensure Python 3.12 is installed.
+1. Ensure Python 3.12 is installed and your computure has a compatible NVIDIA GPU.
 2. In the model directory, run this command:
    ```sh
    cp .env-example .env
@@ -24,10 +24,6 @@ To generate a new version of the model:
     ```sh
     pip install --requirement requirements.txt
     ```
-   If your machine has a CUDA compatible NVIDIA GPU, install additional dependencies for GPU acceleration:
-   ```sh
-   pip install --requirement requirements-gpu.txt
-   ```
 6. Run the training script:
    ```sh
    python train_model.py
