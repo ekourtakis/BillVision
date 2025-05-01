@@ -25,7 +25,8 @@ class BillDetector(
     private val context: Context,
     private val modelPath: String = "usd_detector.tflite",
     private val confidenceThreshold: Float = 0.9f,
-    private val iouThreshold: Float = 0.45f // for no max suppression
+    private val iouThreshold: Float = 0.45f, // for no max suppression
+    private val maxResults: Int = 3
 )  : Closeable {
     private var interpreter: Interpreter? = null
     private var inputWidth = 0
@@ -185,7 +186,7 @@ class BillDetector(
 
         Log.d("BillDetector", "found ${postNMSDetections.size} detections after NMS")
 
-        return postNMSDetections
+        return postNMSDetections.take(maxResults)
     }
 
     internal fun applyNMS(detections: List<BillInference>): List<BillInference> {
