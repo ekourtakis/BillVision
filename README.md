@@ -10,7 +10,7 @@ To run the Android app:
 ## Model Training
 To generate a new version of the model:
 1. Ensure Python 3.12 is installed and your computure has a compatible NVIDIA GPU.
-2. In the model directory, run this command:
+2. In the `model` directory, run this command:
    ```sh
    cp .env-example .env
    ```
