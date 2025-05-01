@@ -42,7 +42,6 @@ class BillImageAnalyzer(
         frameSkipCounter = 0
 
         val imageTimeStamp = imageProxy.imageInfo.timestamp
-        val currentImageDimensions = ImageDimensions(imageProxy.width, imageProxy.height)
 
         currentDetectionJob = scope.launch {
             if (isClosed.get() || !isActive) {
@@ -54,7 +53,6 @@ class BillImageAnalyzer(
             try {
                 val image = imageProxy.image ?: run {
                     Log.w("BillImageAnalyzer", "ImageProxy.image was null.")
-                    imageProxy.close()
                     return@launch
                 }
 
@@ -68,7 +66,6 @@ class BillImageAnalyzer(
                 }
 
                 if (isClosed.get() || !isActive) {
-                    bitmap.recycle()
                     return@launch
                 }
 
