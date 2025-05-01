@@ -5,10 +5,12 @@ import android.graphics.RectF
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.billvision.ml.BillDetector
+import com.example.billvision.model.BillInference
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Unit tests for BillDetector logic, specifically IoU.
@@ -17,18 +19,20 @@ import kotlin.test.assertEquals
 class BillDetectorTest {
 
     private lateinit var context: Context
-    private lateinit var detectorInstanceForIouTest: BillDetector
+    private lateinit var dummyDetector: BillDetector
 
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        detectorInstanceForIouTest = BillDetector(context, modelPath = "dummy_path.tflite")
+        dummyDetector = BillDetector(context, modelPath = "dummy_path.tflite")
     }
+
+    // --- calculateIoU tests ---
     @Test
     fun `calculateIoU returns 1 for identical boxes`() {
         val box = RectF(10f, 10f, 50f, 50f)
         val expectedIoU = 1.0f
-        val actualIoU = detectorInstanceForIouTest.calculateIoU(box, box)
+        val actualIoU = dummyDetector.calculateIoU(box, box)
         assertEquals(expectedIoU, actualIoU, 0.001f) // Use delta for float comparison
     }
 
@@ -37,7 +41,7 @@ class BillDetectorTest {
         val box1 = RectF(10f, 10f, 20f, 20f)
         val box2 = RectF(30f, 30f, 40f, 40f)
         val expectedIoU = 0.0f
-        val actualIoU = detectorInstanceForIouTest.calculateIoU(box1, box2)
+        val actualIoU = dummyDetector.calculateIoU(box1, box2)
         assertEquals(expectedIoU, actualIoU, 0.001f)
     }
 
@@ -49,7 +53,7 @@ class BillDetectorTest {
         // Union = Area1 + Area2 - Intersection = 400 + 400 - 100 = 700
         // IoU = Intersection / Union = 100 / 700 = 1/7
         val expectedIoU = 1.0f / 7.0f
-        val actualIoU = detectorInstanceForIouTest.calculateIoU(box1, box2)
+        val actualIoU = dummyDetector.calculateIoU(box1, box2)
         assertEquals(expectedIoU, actualIoU, 0.001f) // Delta for float comparison
     }
 
@@ -61,11 +65,11 @@ class BillDetectorTest {
         // Union = Area of outer box = 10000
         // IoU = 2500 / 10000 = 0.25
         val expectedIoU = 0.25f
-        val actualIoU = detectorInstanceForIouTest.calculateIoU(outerBox, innerBox)
+        val actualIoU = dummyDetector.calculateIoU(outerBox, innerBox)
         assertEquals(expectedIoU, actualIoU, 0.001f)
 
         // Test the other way around too
-        val actualIoUReversed = detectorInstanceForIouTest.calculateIoU(innerBox, outerBox)
+        val actualIoUReversed = dummyDetector.calculateIoU(innerBox, outerBox)
         assertEquals(expectedIoU, actualIoUReversed, 0.001f)
     }
 
@@ -75,9 +79,9 @@ class BillDetectorTest {
         val zeroAreaBoxLine = RectF(40f, 40f, 40f, 50f) // Line (width 0)
         val zeroAreaBoxPoint = RectF(50f, 50f, 50f, 50f) // Point (width/height 0)
 
-        assertEquals(0.0f, detectorInstanceForIouTest.calculateIoU(box1, zeroAreaBoxLine), 0.001f)
-        assertEquals(0.0f, detectorInstanceForIouTest.calculateIoU(box1, zeroAreaBoxPoint), 0.001f)
-        assertEquals(0.0f, detectorInstanceForIouTest.calculateIoU(zeroAreaBoxLine, zeroAreaBoxPoint), 0.001f)
+        assertEquals(0.0f, dummyDetector.calculateIoU(box1, zeroAreaBoxLine), 0.001f)
+        assertEquals(0.0f, dummyDetector.calculateIoU(box1, zeroAreaBoxPoint), 0.001f)
+        assertEquals(0.0f, dummyDetector.calculateIoU(zeroAreaBoxLine, zeroAreaBoxPoint), 0.001f)
     }
 
     @Test
@@ -87,9 +91,27 @@ class BillDetectorTest {
         // Intersection = 0 (only edge touch)
         // Union = 100 + 100 - 0 = 200
         // IoU = 0 / 200 = 0
-        assertEquals(0.0f, detectorInstanceForIouTest.calculateIoU(box1, box2), 0.001f)
+        assertEquals(0.0f, dummyDetector.calculateIoU(box1, box2), 0.001f)
 
         val box3 = RectF(10f, 20f, 20f, 30f) // Area = 100, touches bottom edge of box1
-        assertEquals(0.0f, detectorInstanceForIouTest.calculateIoU(box1, box3), 0.001f)
+        assertEquals(0.0f, dummyDetector.calculateIoU(box1, box3), 0.001f)
+    }
+
+    // --- applyNMS tests ---
+    @Test
+    fun `applyNMS returns empty list for empty input`() {
+        val result = dummyDetector.applyNMS(emptyList<BillInference>())
+        assertTrue(result.isEmpty(), "Result should be empty for empty input")
+    }
+
+    @Test
+    fun `applyNMS keeps single detection`() {
+        val singleDetection = listOf(
+            BillInference("1 dollar", 0.95f, RectF(10f, 10f, 20f, 20f))
+        )
+
+        val result = dummyDetector.applyNMS(singleDetection)
+        assertEquals(1, result.size, "Should keep the single detection")
+        assertEquals("1 dollar", result[0].name)
     }
 }

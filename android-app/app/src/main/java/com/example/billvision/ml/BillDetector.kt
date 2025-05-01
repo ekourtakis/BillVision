@@ -188,7 +188,7 @@ class BillDetector(
         return postNMSDetections
     }
 
-    private fun applyNMS(detections: List<BillInference>): List<BillInference> {
+    internal fun applyNMS(detections: List<BillInference>): List<BillInference> {
         if (detections.isEmpty()) return emptyList()
 
         // *** Add Logging Here ***
