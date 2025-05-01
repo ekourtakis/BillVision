@@ -127,4 +127,38 @@ class BillDetectorTest {
         assertTrue(result.any { it.name == "5 dollar" })
         assertTrue(result.any { it.name == "10 dollar" })
     }
+
+    @Test
+    fun `applyNMS suppresses lower confidence box with high overlap`() {
+        // default IoU threshold of 0.45f
+        val box1 = RectF(10f, 10f, 30f, 30f) // area 400
+        val box2 = RectF(12f, 12f, 32f, 32f) // area 400, High overlap with box1 (IoU > 0.45)
+
+        val detections = listOf(
+            BillInference("Keep", 0.99f, box1),       // higher confidence
+            BillInference("Suppress", 0.90f, box2)   // lower confidence, overlaps highly
+        )
+        val result = dummyDetector.applyNMS(detections)
+        assertEquals(1, result.size, "Should suppress the lower confidence overlapping box")
+        assertEquals("Keep", result[0].name) // only the higher confidence one should remain
+    }
+
+    @Test
+    fun `applyNMS keeps lower confidence box if overlap is below threshold`() {
+        // default IoU threshold of 0.45f
+        val box1 = RectF(10f, 10f, 30f, 30f) // area 400
+        val box2 = RectF(25f, 25f, 45f, 45f) // area 400
+        // Intersection: xA=25, yA=25, xB=30, yB=30 -> W=5, H=5 -> Area = 25
+        // Union = 400 + 400 - 25 = 775
+        // IoU = 25 / 775 ~= 0.032 (which is < 0.45 threshold)
+
+        val detections = listOf(
+            BillInference("Keep1", 0.99f, box1), // higher confidence
+            BillInference("Keep2", 0.90f, box2)  // lower confidence, low overlap
+        )
+        val result = dummyDetector.applyNMS(detections)
+        assertEquals(2, result.size, "Should keep both boxes due to low overlap")
+        assertTrue(result.any { it.name == "Keep1" })
+        assertTrue(result.any { it.name == "Keep2" })
+    }
 }
