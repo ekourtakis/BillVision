@@ -66,7 +66,11 @@ class BillImageAnalyzerTest {
         lenient().whenever(mockImageProxy.height).thenReturn(480)
         lenient().whenever(mockImageInfo.timestamp).thenReturn(12345L)
 
-        analyzer = BillImageAnalyzer(mockDetector, testOnResultsCallback)
+        analyzer = BillImageAnalyzer(
+            detector = mockDetector,
+            onResults = testOnResultsCallback,
+            defaultDispatcher = testDispatcher
+        )
     }
 
     @After

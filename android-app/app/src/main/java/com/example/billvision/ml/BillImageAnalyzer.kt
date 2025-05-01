@@ -15,10 +15,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class BillImageAnalyzer(
     private val detector: BillDetector,
-    private val onResults: (List<BillInference>, ImageDimensions) -> Unit
+    private val onResults: (List<BillInference>, ImageDimensions) -> Unit,
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ImageAnalysis.Analyzer, Closeable {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + defaultDispatcher)
     private var frameSkipCounter = 0
     private val skipFrames = 5
     private var currentDetectionJob: Job? = null
@@ -53,6 +54,7 @@ class BillImageAnalyzer(
             try {
                 val image = imageProxy.image ?: run {
                     Log.w("BillImageAnalyzer", "ImageProxy.image was null.")
+
                     return@launch
                 }
 
