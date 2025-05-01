@@ -9,7 +9,7 @@ To run the Android app:
 
 ## Model Training
 To generate a new version of the model:
-1. Ensure Python 3.12 is installed and your computure has a compatible NVIDIA GPU.
+1. Ensure Python 3.12 is installed and your computure has a CUDA compatible NVIDIA GPU.
 2. In the `model` directory, run this command:
    ```sh
    cp .env-example .env
@@ -28,4 +28,6 @@ To generate a new version of the model:
    ```sh
    python train_model.py
    ```
-   The script trains a new model and, if successful, exports it as a TFLite file. The exported model is saved to the Android app's assets directory, making it ready for immediate testing. Run `deactivate` to exit the virtual environment.
+   The script trains a new model and, if successful, exports it as a TFLite file. The exported model is saved to the Android app's assets directory, making it ready for immediate testing (see Android build instructions above).
+
+   Run `deactivate` to exit the virtual environment.
