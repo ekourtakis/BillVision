@@ -13,7 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Unit tests for BillDetector logic, specifically IoU.
+ * Unit tests for BillDetector logic.
  */
 @RunWith(AndroidJUnit4::class)
 class BillDetectorTest {
@@ -160,5 +160,38 @@ class BillDetectorTest {
         assertEquals(2, result.size, "Should keep both boxes due to low overlap")
         assertTrue(result.any { it.name == "Keep1" })
         assertTrue(result.any { it.name == "Keep2" })
+    }
+
+    @Test
+    fun `applyNMS handles multiple overlapping boxes correctly`() {
+        // high to low confidence
+        val box1 = RectF(15f, 15f, 35f, 35f) // Area = 20*20 = 400
+        val box2 = RectF(16f, 16f, 36f, 36f) // Area = 400
+
+        // Intersection: xA=16, yA=16, xB=35, yB=35 -> W=19, H=19 -> Area = 361
+        // Union = 400 + 400 - 361 = 439
+        // IoU = 361 / 439 ~= 0.82 (>= 0.45, should suppress)
+
+        // Box 3 (Lowest confidence) - Design for HIGH overlap with Box 2
+        val box3 = RectF(14f, 14f, 34f, 34f) // Area = 400
+        // Intersection: xA=15, yA=15, xB=34, yB=34 -> W=19, H=19 -> Area = 361
+        // Union = 400 + 400 - 361 = 439
+        // IoU = 361 / 439 ~= 0.82 (>= 0.45, should suppress)
+
+
+        val detections = listOf(
+            BillInference("Box 2", 0.95f, box1), // highest confidence
+            BillInference("Box 1", 0.90f, box2), // lower conf, high overlap
+            BillInference("Box 3", 0.85f, box3)  // lowest conf, high overlap
+        )
+
+        // Expected: Box 1 suppressed by Box 2. Box 3 suppressed by Box 2.
+        // Result should only contain Box 2.
+        val result = dummyDetector.applyNMS(detections)
+
+        // only one left
+        assertEquals(1, result.size, "Should keep only the highest confidence box among highly overlapping ones")
+        // the remaining box is box2
+        assertEquals("Box 2", result[0].name)
     }
 }
