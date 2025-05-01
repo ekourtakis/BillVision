@@ -14,6 +14,7 @@ import org.tensorflow.lite.support.common.ops.NormalizeOp
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
+import java.io.Closeable
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -25,7 +26,7 @@ class BillDetector(
     private val modelPath: String = "usd_detector.tflite",
     private val confidenceThreshold: Float = 0.9f,
     private val iouThreshold: Float = 0.45f // for no max suppression
-) {
+)  : Closeable {
     private var interpreter: Interpreter? = null
     private var inputWidth = 0
     private var inputHeight = 0
@@ -46,15 +47,17 @@ class BillDetector(
 
     private fun setupDetector() {
         val interpreterOptions = Interpreter.Options().apply {
-            numThreads = 4
+            numThreads = Runtime.getRuntime().availableProcessors().coerceAtMost(4)
         }
 
         try {
             val modelBuffer = FileUtil.loadMappedFile(context, modelPath)
+
             interpreter = Interpreter(modelBuffer, interpreterOptions)
 
             val inputTensor = interpreter!!.getInputTensor(0)
             val inputShape = inputTensor.shape()
+
             inputHeight = inputShape[1]
             inputWidth = inputShape[2]
 
@@ -79,22 +82,6 @@ class BillDetector(
         } catch (e: IOException) {
             Log.e("BillDetector", "Error loading tflite model: ${e.message}")
             interpreter = null
-        }
-    }
-
-    fun detectFromPhotoPath(imagePath: String): List<BillInference> {
-        return try {
-            val bitmap = BitmapFactory.decodeFile(File(imagePath).absolutePath)
-
-            if (bitmap == null) {
-                Log.e("BillDetector", "Failed to decode bitmap from path: $imagePath")
-                return emptyList()
-            }
-
-            detect(bitmap)
-        } catch (e: Exception) {
-            Log.e("BillDetector", "Error processing photo path $imagePath: ${e.message}")
-            emptyList()
         }
     }
 
@@ -201,7 +188,7 @@ class BillDetector(
         return postNMSDetections
     }
 
-    private fun applyNMS(detections: List<BillInference>): List<BillInference> {
+    internal fun applyNMS(detections: List<BillInference>): List<BillInference> {
         if (detections.isEmpty()) return emptyList()
 
         // *** Add Logging Here ***
@@ -229,7 +216,7 @@ class BillDetector(
 
                 for (j in (i + 1) until sortedDetections.size) {
                     if (active[j]) {
-                        val otherBox = sortedDetections[i]
+                        val otherBox = sortedDetections[j]
                         val iou = calculateIoU(currentBox.boundingBox, otherBox.boundingBox)
 
                         if (iou >= iouThreshold) {
@@ -245,12 +232,10 @@ class BillDetector(
         return selectedDetections
     }
 
-    private fun calculateIoU(box1: RectF, box2: RectF): Float {
-        // *** Add Logging Here ***
+    internal fun calculateIoU(box1: RectF, box2: RectF): Float {
         Log.v("BillDetectorIoU", "Calculating IoU for:")
         Log.v("BillDetectorIoU", "  Box1: $box1")
         Log.v("BillDetectorIoU", "  Box2: $box2")
-        // *** End Logging ***
 
         val xA = max(box1.left, box2.left)
         val yA = max(box1.top, box2.top)
@@ -283,7 +268,7 @@ class BillDetector(
         return max(0f, min(1f, iou))
     }
 
-    fun close() {
+    override fun close() {
         interpreter?.close()
         interpreter = null
         Log.i("BillDetector", "Interpretor closed")
