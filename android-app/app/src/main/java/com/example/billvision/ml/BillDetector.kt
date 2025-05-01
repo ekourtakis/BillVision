@@ -216,7 +216,7 @@ class BillDetector(
 
                 for (j in (i + 1) until sortedDetections.size) {
                     if (active[j]) {
-                        val otherBox = sortedDetections[i]
+                        val otherBox = sortedDetections[j]
                         val iou = calculateIoU(currentBox.boundingBox, otherBox.boundingBox)
 
                         if (iou >= iouThreshold) {

@@ -114,4 +114,17 @@ class BillDetectorTest {
         assertEquals(1, result.size, "Should keep the single detection")
         assertEquals("1 dollar", result[0].name)
     }
+
+    @Test
+    fun `applyNMS keeps non-overlapping boxes`() {
+        val detections = listOf(
+            BillInference("5 dollar", 0.98f, RectF(10f, 10f, 20f, 20f)), // High confidence
+            BillInference("10 dollar", 0.95f, RectF(30f, 30f, 40f, 40f)) // Lower confidence, no overlap
+        )
+        val result = dummyDetector.applyNMS(detections)
+        assertEquals(2, result.size, "Should keep both non-overlapping boxes")
+        // order might change based on confidence, but both should be present
+        assertTrue(result.any { it.name == "5 dollar" })
+        assertTrue(result.any { it.name == "10 dollar" })
+    }
 }
